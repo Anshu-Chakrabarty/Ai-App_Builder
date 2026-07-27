@@ -1,0 +1,56 @@
+:root {
+  --accent: #0f766e;
+  --text: #0f172a;
+  --muted: #64748b;
+  --bg: #f8fafc;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.6;
+}
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+.site-header {
+  position: sticky; top: 0; background: rgba(248,250,252,.9);
+  backdrop-filter: blur(10px); border-bottom: 1px solid #e2e8f0;
+}
+.brand-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 24px;
+}
+.brand { font-size: 18px; letter-spacing: -0.02em; }
+nav { display: flex; gap: 16px; }
+nav a { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 14px; }
+.hero { padding: 64px 0 40px; }
+.hero-grid {
+  display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 36px; align-items: center;
+}
+.hero h1 { font-size: clamp(32px, 5vw, 48px); line-height: 1.1; letter-spacing: -0.03em; margin-bottom: 14px; }
+.hero p { color: var(--muted); margin-bottom: 22px; max-width: 42ch; }
+.hero img { width: 100%; border-radius: 18px; object-fit: cover; min-height: 280px; }
+.btn {
+  display: inline-block; background: var(--accent); color: #fff;
+  padding: 12px 18px; border-radius: 10px; text-decoration: none; font-weight: 700;
+  border: none; cursor: pointer;
+}
+.services, .about, .team, .contact, .cta { padding: 56px 0; }
+.services h2, .team h2, .cta h2, .about h1, .contact h1 { margin-bottom: 10px; letter-spacing: -0.02em; }
+.services > .wrap > p, .about p, .contact > .wrap > p { color: var(--muted); margin-bottom: 28px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+.cards article {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 22px;
+}
+.cards h3 { margin-bottom: 8px; font-size: 17px; }
+.cards p { color: var(--muted); font-size: 14px; }
+.cta { background: #0f172a; color: #fff; }
+.cta p { color: #94a3b8; margin: 10px 0 22px; }
+.contact form { display: grid; gap: 8px; max-width: 420px; margin-bottom: 20px; }
+.contact input, .contact textarea {
+  padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; margin-bottom: 8px;
+}
+.site-footer { padding: 28px 0; border-top: 1px solid #e2e8f0; color: var(--muted); font-size: 13px; }
+@media (max-width: 800px) {
+  .hero-grid { grid-template-columns: 1fr; }
+}
