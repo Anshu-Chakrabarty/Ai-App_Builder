@@ -33,6 +33,26 @@ export default function StudioPage() {
   const [titleDraft, setTitleDraft] = useState("");
   const [target, setTarget] = useState<StudioTarget | null>(null);
   const [images, setImages] = useState<string[]>([]);
+  const [pipelineStages, setPipelineStages] = useState<
+    | {
+        id: string;
+        label: string;
+        status: "pending" | "running" | "done" | "skipped";
+        detail?: string;
+      }[]
+    | null
+  >(null);
+
+  // Show 4-agent pipeline progress while a Studio edit runs
+  useEffect(() => {
+    if (!busy) return;
+    setPipelineStages([
+      { id: "understand", label: "Natural Language", status: "running" },
+      { id: "plan", label: "Design Planning", status: "pending" },
+      { id: "edit", label: "Code Editing", status: "pending" },
+      { id: "validate", label: "Validation", status: "pending" },
+    ]);
+  }, [busy]);
 
   function sanitizeChatText(text: string): string {
     return String(text || "")
@@ -360,6 +380,10 @@ export default function StudioPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Modify failed");
 
+      if (data.pipeline?.stages?.length) {
+        setPipelineStages(data.pipeline.stages);
+      }
+
       const nextPages = data.pages || proj.site.pages;
       const userText = sanitizeChatText(
         (message.trim() || "Apply uploaded image") +
@@ -456,6 +480,7 @@ export default function StudioPage() {
       });
     } finally {
       setBusy(false);
+      setTimeout(() => setPipelineStages(null), 2400);
     }
   }
 
@@ -773,6 +798,7 @@ export default function StudioPage() {
                 updateActive({ chat: [], workLog: [] });
                 setAssistantNote("Chat cleared — site design unchanged.");
               }}
+              pipelineStages={pipelineStages}
             />
 
             {assistantNote ? (

@@ -23,5 +23,12 @@ export { renderSiteFromConfig } from "./render-site";
 export { renderBoundPages } from "./render-bound";
 export { runWebsiteAgent, materializeNewPages } from "./agent";
 export type { AgentHistoryTurn, AgentWorkEntry } from "./agent";
+export { runEditPipeline } from "./agents/pipeline";
+export type {
+  IntentPlan,
+  EditPlan,
+  PipelineResult,
+  PipelineStageStatus,
+} from "./agents/types";
 export { ingestZipBuffer, ingestHtmlString } from "./ingest/from-zip";
 export { makeIngestStubTemplate } from "./stub-template";

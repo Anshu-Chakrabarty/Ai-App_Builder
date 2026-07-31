@@ -717,6 +717,7 @@ export async function POST(req: Request) {
         assets,
         assistantMessage: agent.assistantMessage,
         newPageKey: pageKey,
+        pipeline: "pipeline" in agent ? agent.pipeline : undefined,
         workEntry: {
           at: Date.now(),
           prompt: msg,
@@ -791,6 +792,7 @@ export async function POST(req: Request) {
       assets,
       assistantMessage: agent.assistantMessage,
       updates: agent.updates,
+      pipeline: "pipeline" in agent ? agent.pipeline : undefined,
       newPageKey:
         removed.length
           ? "home"

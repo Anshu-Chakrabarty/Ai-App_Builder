@@ -6,21 +6,49 @@ import { AppSidebar } from "./Sidebar";
 import { ProfileMenu } from "./ProfileMenu";
 
 const SIDEBAR_KEY = "appbuilder_sidebar_open_v1";
+const MOBILE_MQ = "(max-width: 1100px)";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(true);
   const [ready, setReady] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(SIDEBAR_KEY);
-      // Default open; only collapse if user explicitly saved "0"
-      if (raw === "0") setOpen(false);
-      else setOpen(true);
-    } catch {
-      setOpen(true);
-    }
+    const mq = window.matchMedia(MOBILE_MQ);
+    const apply = () => {
+      const mobile = mq.matches;
+      setIsMobile(mobile);
+      try {
+        const raw = localStorage.getItem(SIDEBAR_KEY);
+        if (mobile) {
+          // Phones: closed by default (open only if user saved "1")
+          setOpen(raw === "1");
+        } else {
+          setOpen(raw !== "0");
+        }
+      } catch {
+        setOpen(!mobile);
+      }
+    };
+    apply();
     setReady(true);
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
+  useEffect(() => {
+    function close() {
+      setOpen(false);
+      try {
+        if (window.matchMedia(MOBILE_MQ).matches) {
+          localStorage.setItem(SIDEBAR_KEY, "0");
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    window.addEventListener("appbuilder-close-sidebar", close);
+    return () => window.removeEventListener("appbuilder-close-sidebar", close);
   }, []);
 
   function toggle() {
@@ -35,10 +63,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     });
   }
 
+  const collapsed = ready && !open;
+
   return (
     <AppBuilderProvider>
-      <div className={`app-shell ${ready && !open ? "sidebar-collapsed" : ""}`}>
+      <div className={`app-shell ${collapsed ? "sidebar-collapsed" : ""}`}>
         <AppSidebar />
+        {ready && open && isMobile ? (
+          <button
+            type="button"
+            className="sidebar-backdrop"
+            aria-label="Close menu"
+            onClick={() => {
+              setOpen(false);
+              try {
+                localStorage.setItem(SIDEBAR_KEY, "0");
+              } catch {
+                /* ignore */
+              }
+            }}
+          />
+        ) : null}
         <button
           type="button"
           className="sidebar-toggle"

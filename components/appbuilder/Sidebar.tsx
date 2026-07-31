@@ -32,9 +32,16 @@ export function AppSidebar() {
     };
   }, []);
 
+  function closeMobileNav() {
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 1100px)").matches) {
+      window.dispatchEvent(new Event("appbuilder-close-sidebar"));
+    }
+  }
+
   function startNew() {
     const p = newProject();
     setActiveId(p.id);
+    closeMobileNav();
     router.push("/wizard");
   }
 
@@ -42,7 +49,7 @@ export function AppSidebar() {
 
   return (
     <aside className="sidebar">
-      <Link href="/projects" className="brand">
+      <Link href="/projects" className="brand" onClick={closeMobileNav}>
         <div className="brand-mark">AB</div>
         <div>
           AppBuilder AI
@@ -70,6 +77,7 @@ export function AppSidebar() {
               key={item.label}
               href={item.href}
               className={`nav-item ${activeNav ? "active" : ""}`}
+              onClick={closeMobileNav}
             >
               <span>{item.icon}</span>
               {item.label}
@@ -104,6 +112,7 @@ export function AppSidebar() {
               }}
               onClick={() => {
                 setActiveId(p.id);
+                closeMobileNav();
                 router.push(
                   p.site || (p.step === "review" && p.status !== "draft")
                     ? `/studio/${p.id}`
@@ -131,10 +140,10 @@ export function AppSidebar() {
 
       <div className="nav-section">
         <div className="nav-label">Support</div>
-        <Link href="/docs" className="nav-item">
+        <Link href="/docs" className="nav-item" onClick={closeMobileNav}>
           Documentation
         </Link>
-        <Link href="/support" className="nav-item">
+        <Link href="/support" className="nav-item" onClick={closeMobileNav}>
           Contact Support
         </Link>
       </div>
@@ -145,7 +154,10 @@ export function AppSidebar() {
         <button
           type="button"
           className="btn btn-soft btn-block"
-          onClick={() => router.push("/wizard")}
+          onClick={() => {
+            closeMobileNav();
+            router.push("/wizard");
+          }}
         >
           Ask AI
         </button>

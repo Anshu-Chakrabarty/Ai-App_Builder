@@ -12,6 +12,13 @@ export type StudioTarget = {
 
 type ChatTurn = { role: "user" | "assistant"; text: string };
 
+export type PipelineStageView = {
+  id: string;
+  label: string;
+  status: "pending" | "running" | "done" | "skipped";
+  detail?: string;
+};
+
 type Props = {
   prompt: string;
   onPromptChange: (v: string) => void;
@@ -30,6 +37,8 @@ type Props = {
   canUndo?: boolean;
   onUndo?: () => void;
   onClearChat?: () => void;
+  /** Live / last multi-agent pipeline stages */
+  pipelineStages?: PipelineStageView[] | null;
 };
 
 type SpeechRec = {
@@ -88,6 +97,7 @@ export function StudioPromptPanel({
   canUndo,
   onUndo,
   onClearChat,
+  pipelineStages,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
@@ -334,8 +344,32 @@ export function StudioPromptPanel({
         )}
         {busy ? (
           <div className="studio-chat-bubble is-ai is-typing">
-            <div className="studio-chat-role">AI</div>
-            <div className="studio-chat-text">Thinking… applying your change</div>
+            <div className="studio-chat-role">AI agents</div>
+            <div className="studio-chat-text">
+              <div className="studio-pipeline">
+                {(
+                  pipelineStages?.length
+                    ? pipelineStages
+                    : [
+                        { id: "understand", label: "Natural Language", status: "running" as const },
+                        { id: "plan", label: "Design Planning", status: "pending" as const },
+                        { id: "edit", label: "Code Editing", status: "pending" as const },
+                        { id: "validate", label: "Validation", status: "pending" as const },
+                      ]
+                ).map((s) => (
+                  <div
+                    key={s.id}
+                    className={`studio-pipeline-step is-${s.status}`}
+                  >
+                    <span className="studio-pipeline-dot" />
+                    <span className="studio-pipeline-label">{s.label}</span>
+                    {s.detail ? (
+                      <span className="studio-pipeline-detail">{s.detail}</span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         ) : null}
       </div>

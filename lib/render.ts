@@ -74,7 +74,30 @@ function baseCSS(
     ${interactiveCSS(accent)}
     ${mediaCSS(accent)}
     ${layoutOverrideCSS(layout)}
-    @media(max-width:720px){nav .links a:not(.nav-cta){display:none}}
+    @media(max-width:720px){
+      .wrap{padding:0 16px}
+      section{padding:40px 0}
+      nav{flex-wrap:wrap;gap:10px;padding:12px 14px;align-items:flex-start}
+      nav .brand{font-size:15px;max-width:46%;min-width:0}
+      nav .brand span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      nav .links{
+        width:100%;gap:8px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+        padding-bottom:4px;scrollbar-width:thin
+      }
+      nav .links a{display:inline-flex!important;font-size:12px;white-space:nowrap;flex-shrink:0;opacity:.8}
+      nav .nav-cta{padding:8px 12px;font-size:12px}
+      h1{font-size:clamp(28px,8vw,42px)}
+      h2{font-size:clamp(22px,6vw,30px)}
+      .lead{font-size:16px;max-width:100%}
+      .btn,.btn-secondary{width:100%;justify-content:center;text-align:center}
+      .hero-actions,.btn-row{flex-direction:column;align-items:stretch}
+      footer{padding:28px 0 100px;flex-direction:column;gap:8px}
+      .sticky-cta{left:12px;right:12px;bottom:12px;justify-content:stretch}
+      .sticky-cta a{flex:1;justify-content:center;width:100%}
+      /* Collapse template inline multi-column grids on phones */
+      [style*="grid-template-columns"]{grid-template-columns:1fr!important}
+      [style*="display:grid"][style*="gap"]{gap:16px!important}
+    }
   `;
 }
 
