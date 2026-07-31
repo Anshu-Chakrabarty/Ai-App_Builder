@@ -7,6 +7,10 @@ export type MediaTheme = {
   hero: string;
   gallery: string[];
   category: string;
+  /** Split-media section photo (right column) */
+  split?: string;
+  /** Inner page banner */
+  banner?: string;
 };
 
 const GALLERY_POOL: Record<string, string[]> = {
@@ -14,7 +18,7 @@ const GALLERY_POOL: Record<string, string[]> = {
     "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=1200&q=80&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=900&q=80&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=900&q=80&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1581595220892-b245d5c2e3e8?w=900&q=80&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=900&q=80&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?w=900&q=80&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1666214280557-f1b5022eb634?w=900&q=80&auto=format&fit=crop",
   ],
@@ -34,15 +38,23 @@ const GALLERY_POOL: Record<string, string[]> = {
     "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=900&q=80&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1445205170230-053b83016050?w=900&q=80&auto=format&fit=crop",
   ],
+  food: [
+    "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1200&q=80&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=900&q=80&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=900&q=80&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=900&q=80&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=900&q=80&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=900&q=80&auto=format&fit=crop",
+  ],
   realestate: [
     "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200&q=80&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=900&q=80&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=900&q=80&auto=format&fit=crop",
   ],
   education: [
-    "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200&q=80&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1200&q=80&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=900&q=80&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=900&q=80&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?w=900&q=80&auto=format&fit=crop",
   ],
   default: [
     "https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80&auto=format&fit=crop",
@@ -52,11 +64,44 @@ const GALLERY_POOL: Record<string, string[]> = {
   ],
 };
 
-function poolKey(category: string, templateId: string): string {
+const GALLERY_LABELS: Record<string, string[]> = {
+  food: ["Dishes", "Kitchen", "Delivery", "Menu", "Dining", "Chefs"],
+  ecommerce: ["Collection", "Product", "Detail", "Lifestyle", "Checkout", "Brand"],
+  healthcare: ["Care", "Team", "Clinic", "Visit", "Support", "Facility"],
+  dental: ["Smile", "Studio", "Care", "Team", "Visit", "Results"],
+  agency: ["Workspace", "Team", "Craft", "Strategy", "Delivery", "Culture"],
+  realestate: ["Homes", "Interior", "Neighborhood", "Exterior", "Kitchen", "Outdoor"],
+  education: ["Campus", "Classroom", "Students", "Library", "Lab", "Community"],
+  default: ["Workspace", "Team", "Product", "Detail", "Atmosphere", "Community"],
+};
+
+/** Infer media domain from idea / brand / template labels — idea wins over template. */
+export function inferMediaDomain(...parts: (string | undefined | null)[]): string {
+  const t = parts.filter(Boolean).join(" ").toLowerCase();
+  if (!t.trim()) return "default";
+  // Food / delivery before healthcare (clinic template was wrongly used for restaurants)
+  if (/food|restaurant|cafe|dining|menu|kitchen|delivery|pizza|burger|meal|cuisine|bistro|catering/.test(t))
+    return "food";
+  if (/dental|dentist|orthodont|smile/.test(t)) return "dental";
+  if (/hospital|clinic|health|patient|doctor|pharm|telehealth|mental|medical|care practice/.test(t))
+    return "healthcare";
+  if (/shop|ecom|store|retail|cart|checkout|fashion|boutique|product catalog/.test(t))
+    return "ecommerce";
+  if (/real.?estate|property|listing|home buyer|broker/.test(t)) return "realestate";
+  if (/edu|learn|course|school|university|campus|lms/.test(t)) return "education";
+  if (/agency|saas|marketing|brand|studio|startup|software/.test(t)) return "agency";
+  if (/hotel|resort|travel|fitness|salon|spa|beauty|pet|vet/.test(t)) return "default";
+  return "default";
+}
+
+function poolKey(category: string, templateId: string, ideaHint?: string): string {
+  const fromIdea = inferMediaDomain(ideaHint);
+  if (fromIdea !== "default") return fromIdea;
   const t = `${category} ${templateId}`.toLowerCase();
   if (/dental|dentist/.test(t)) return "dental";
   if (/clinic|hospital|health|care|pharm|tele|mental|primary|specialty/.test(t))
     return "healthcare";
+  if (/food|restaurant|cafe|dining/.test(t)) return "food";
   if (/shop|ecom|store|retail/.test(t)) return "ecommerce";
   if (/real|estate|property|listing/.test(t)) return "realestate";
   if (/edu|learn|course|school/.test(t)) return "education";
@@ -67,12 +112,92 @@ function poolKey(category: string, templateId: string): string {
 export function resolveMediaTheme(
   category: string,
   templateId: string,
-  previewImage?: string
+  previewImage?: string,
+  ideaHint?: string
 ): MediaTheme {
-  const key = poolKey(category, templateId);
-  const gallery = GALLERY_POOL[key] || GALLERY_POOL.default;
-  const hero = previewImage || gallery[0];
-  return { hero, gallery: gallery.filter((u) => u !== hero).concat(gallery).slice(0, 6), category: key };
+  const key = poolKey(category, templateId, ideaHint);
+  const pool = GALLERY_POOL[key] || GALLERY_POOL.default;
+  const ideaDomain = ideaHint ? inferMediaDomain(ideaHint) : "default";
+  const useHero =
+    ideaDomain !== "default"
+      ? pool[0]
+      : isBrokenMediaUrl(previewImage)
+        ? pool[0]
+        : previewImage || pool[0];
+  const gallery = ensureGalleryUrls(
+    pool.filter((u) => u !== useHero).concat(pool),
+    key,
+    6
+  );
+  return {
+    hero: useHero || FALLBACK_IMAGE,
+    gallery,
+    category: key,
+    split: gallery[1] || useHero || FALLBACK_IMAGE,
+    banner: gallery[2] || useHero || FALLBACK_IMAGE,
+  };
+}
+
+/** Known-good fallback when a gallery/hero URL 404s or is empty. */
+export const FALLBACK_IMAGE =
+  "https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80&auto=format&fit=crop";
+
+/** Dead Unsplash IDs we have shipped before — rewrite on render. */
+const DEAD_PHOTO_IDS = [
+  "photo-1581595220892-b245d5c2e3e8",
+  "photo-1523050854058-8df90110c9f1",
+];
+
+export function isBrokenMediaUrl(url: string | undefined | null): boolean {
+  if (!url || !String(url).trim()) return true;
+  const u = String(url);
+  if (!/^https?:\/\//i.test(u) && !u.startsWith("data:image/")) return true;
+  return DEAD_PHOTO_IDS.some((id) => u.includes(id));
+}
+
+/** Ensure gallery always has N fetchable URLs (pad from pool, drop dead ones). */
+export function ensureGalleryUrls(
+  urls: string[] | undefined,
+  poolKeyName: string,
+  count = 6
+): string[] {
+  const pool = GALLERY_POOL[poolKeyName] || GALLERY_POOL.default;
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const u of urls || []) {
+    if (isBrokenMediaUrl(u)) continue;
+    const s = String(u).trim();
+    if (seen.has(s)) continue;
+    seen.add(s);
+    out.push(s);
+    if (out.length >= count) break;
+  }
+  for (const u of pool) {
+    if (out.length >= count) break;
+    if (isBrokenMediaUrl(u) || seen.has(u)) continue;
+    seen.add(u);
+    out.push(u);
+  }
+  while (out.length < count) out.push(FALLBACK_IMAGE);
+  return out;
+}
+
+function withSize(url: string, w: number, h: number): string {
+  if (url.startsWith("data:")) return url;
+  const join = url.includes("?") ? "&" : "?";
+  return `${url}${join}w=${w}&h=${h}&fit=crop`;
+}
+
+/** img tag attrs with onerror → fallback so “Detail” never shows empty. */
+export function mediaImgAttrs(src: string, opts?: { w?: number; h?: number }): string {
+  let url = isBrokenMediaUrl(src) ? FALLBACK_IMAGE : String(src || FALLBACK_IMAGE);
+  if (opts?.w && opts?.h) url = withSize(url, opts.w, opts.h);
+  const fb = FALLBACK_IMAGE;
+  return `src="${esc(url)}" onerror="this.onerror=null;this.src='${fb}'"`;
+}
+
+export function galleryLabelsFor(category: string): string[] {
+  return GALLERY_LABELS[category] || GALLERY_LABELS.default;
 }
 
 /** Inline SVG icons (no external dependency — works in downloaded HTML). */
@@ -126,6 +251,10 @@ export function mediaCSS(accent: string): string {
     .photo-grid .shot:nth-child(2){grid-column:span 5;min-height:280px}
     .photo-grid .shot:nth-child(3),.photo-grid .shot:nth-child(4),.photo-grid .shot:nth-child(5){grid-column:span 4}
     .photo-grid .shot .cap{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700;color:#1a1a1a}
+    .photo-grid.is-equal{grid-template-columns:repeat(3,1fr)}
+    .photo-grid.is-equal .shot,.photo-grid.is-equal .shot:nth-child(n){grid-column:auto;min-height:200px}
+    .html-blocks-grid{display:grid;gap:18px;margin:24px auto;max-width:1100px;padding:0 20px;align-items:stretch}
+    .html-blocks-grid > *{min-width:0}
     .split-media{display:grid;grid-template-columns:1.05fr .95fr;gap:36px;align-items:center;margin-top:20px}
     .split-media .frame{border-radius:22px;overflow:hidden;min-height:320px;box-shadow:0 20px 50px rgba(16,24,40,.12);position:relative}
     .split-media .frame img{width:100%;height:100%;object-fit:cover;min-height:320px}
@@ -153,10 +282,46 @@ export function mediaCSS(accent: string): string {
     @media(max-width:860px){
       .split-media{grid-template-columns:1fr}
       .photo-grid .shot,.photo-grid .shot:nth-child(1),.photo-grid .shot:nth-child(2),
-      .photo-grid .shot:nth-child(3),.photo-grid .shot:nth-child(4),.photo-grid .shot:nth-child(5){grid-column:span 12;min-height:180px}
+      .photo-grid .shot:nth-child(3),.photo-grid .shot:nth-child(4),.photo-grid .shot:nth-child(5),
+      .photo-grid.is-equal{grid-template-columns:1fr}
+      .photo-grid.is-equal .shot,.photo-grid .shot{grid-column:span 12;min-height:180px}
+      .html-blocks-grid{grid-template-columns:1fr!important}
       .media-hero{min-height:420px;border-radius:0 0 18px 18px}
     }
   `;
+}
+
+/** Extra CSS driven by config.layout (columns / equal grids). */
+export function layoutOverrideCSS(layout?: {
+  galleryColumns?: number;
+  galleryVariant?: "featured" | "equal";
+  featureColumns?: number;
+  blocksColumns?: number;
+} | null): string {
+  if (!layout) return "";
+  const parts: string[] = [];
+  const fCols = clampCols(layout.featureColumns);
+  if (fCols) {
+    parts.push(`.feature-icons{grid-template-columns:repeat(${fCols},minmax(0,1fr))!important}`);
+  }
+  const gCols = clampCols(layout.galleryColumns) || (layout.galleryVariant === "equal" ? 3 : 0);
+  if (layout.galleryVariant === "equal" || gCols) {
+    const cols = gCols || 3;
+    parts.push(`.photo-grid,.photo-grid.is-equal{grid-template-columns:repeat(${cols},minmax(0,1fr))!important}`);
+    parts.push(
+      `.photo-grid .shot,.photo-grid .shot:nth-child(n),.photo-grid.is-equal .shot{grid-column:auto!important;min-height:200px}`
+    );
+  }
+  const bCols = clampCols(layout.blocksColumns);
+  if (bCols) {
+    parts.push(`.html-blocks-grid{grid-template-columns:repeat(${bCols},minmax(0,1fr))!important}`);
+  }
+  return parts.length ? `\n${parts.join("\n")}` : "";
+}
+
+function clampCols(n?: number): number {
+  if (!n || !Number.isFinite(n)) return 0;
+  return Math.min(6, Math.max(2, Math.round(n)));
 }
 
 const FEATURE_SETS: Record<string, { icon: string; title: string; body: string }[]> = {
@@ -184,6 +349,12 @@ const FEATURE_SETS: Record<string, { icon: string; title: string; body: string }
     { icon: "shield", title: "Secure pay", body: "Trusted payments and easy returns." },
     { icon: "spark", title: "Fresh drops", body: "New arrivals every week." },
   ],
+  food: [
+    { icon: "star", title: "Chef-quality meals", body: "Restaurants and kitchens near you." },
+    { icon: "clock", title: "Fast delivery", body: "Track orders from kitchen to door." },
+    { icon: "check", title: "Easy ordering", body: "Menus, carts, and checkout in a few taps." },
+    { icon: "heart", title: "Favorites saved", body: "Reorder the dishes you love." },
+  ],
   default: [
     { icon: "spark", title: "Modern experience", body: "Clean UI with purposeful motion and clarity." },
     { icon: "users", title: "Built for people", body: "Flows that feel obvious on day one." },
@@ -192,19 +363,39 @@ const FEATURE_SETS: Record<string, { icon: string; title: string; body: string }
   ],
 };
 
-export function renderIconFeatures(theme: MediaTheme, accent: string): string {
-  const set = FEATURE_SETS[theme.category] || FEATURE_SETS.default;
-  return `<section class="wrap" style="padding-top:56px;padding-bottom:24px">
+export function renderIconFeatures(
+  theme: MediaTheme,
+  accent: string,
+  copy?: {
+    title?: string;
+    subtitle?: string;
+    items?: { icon?: string; title?: string; body?: string }[];
+  }
+): string {
+  const defaults = FEATURE_SETS[theme.category] || FEATURE_SETS.default;
+  const set =
+    Array.isArray(copy?.items) && copy!.items!.length
+      ? copy!.items!.map((it, i) => ({
+          icon: it.icon || defaults[i % defaults.length]?.icon || "spark",
+          title: it.title || defaults[i % defaults.length]?.title || `Feature ${i + 1}`,
+          body: it.body || defaults[i % defaults.length]?.body || "",
+        }))
+      : defaults;
+  const title = copy?.title || "Designed with icons, imagery & polish";
+  const subtitle =
+    copy?.subtitle ||
+    "Every generated site ships with styled components, photo layouts, and SVG icons — not just plain text.";
+  return `<section class="wrap" style="padding-top:56px;padding-bottom:24px" data-ai-section="features" data-ai-id="home.features" id="features">
     <div class="eyebrow">${iconHTML("spark")} Why it feels modern</div>
-    <h2>Designed with icons, imagery & polish</h2>
-    <p class="lead">Every generated site ships with styled components, photo layouts, and SVG icons — not just plain text.</p>
+    <h2 data-ai-id="visual.features.title">${esc(title)}</h2>
+    <p class="lead" data-ai-id="visual.features.subtitle">${esc(subtitle)}</p>
     <div class="feature-icons">
       ${set
         .map(
-          (f) => `<div class="card-soft">
+          (f, i) => `<div class="card-soft" data-ai-id="visual.features.items.${i}">
           <div class="icon-badge">${iconHTML(f.icon)}</div>
-          <h3>${esc(f.title)}</h3>
-          <p>${esc(f.body)}</p>
+          <h3 data-ai-id="visual.features.items.${i}.title">${esc(f.title)}</h3>
+          <p data-ai-id="visual.features.items.${i}.body">${esc(f.body)}</p>
         </div>`
         )
         .join("")}
@@ -212,49 +403,75 @@ export function renderIconFeatures(theme: MediaTheme, accent: string): string {
   </section>`;
 }
 
-export function renderPhotoGallery(theme: MediaTheme, labels?: string[]): string {
-  const caps = labels || ["Workspace", "Team", "Product", "Detail", "Atmosphere", "Community"];
+export function renderPhotoGallery(
+  theme: MediaTheme,
+  labels?: string[],
+  layout?: { columns?: number; variant?: "featured" | "equal" },
+  copy?: { title?: string; subtitle?: string }
+): string {
+  const caps = labels || galleryLabelsFor(theme.category);
   const shots = theme.gallery.slice(0, 5);
-  return `<section class="wrap" style="padding-top:40px;padding-bottom:24px">
+  const equal = layout?.variant === "equal" || (layout?.columns && layout.columns >= 2);
+  const title = copy?.title || "Real imagery, ready to ship";
+  const subtitle =
+    copy?.subtitle ||
+    "High-quality photos matched to your category — swap with your brand assets anytime.";
+  return `<section class="wrap" style="padding-top:40px;padding-bottom:24px" data-ai-section="gallery" data-ai-id="home.gallery" id="gallery">
     <div class="eyebrow">${iconHTML("image")} Visual story</div>
-    <h2>Real imagery, ready to ship</h2>
-    <p class="lead">High-quality photos matched to your category — swap with your brand assets anytime.</p>
-    <div class="photo-grid">
+    <h2 data-ai-id="visual.gallery.title">${esc(title)}</h2>
+    <p class="lead" data-ai-id="visual.gallery.subtitle">${esc(subtitle)}</p>
+    <div class="photo-grid${equal ? " is-equal" : ""}">
       ${shots
         .map(
-          (src, i) => `<div class="shot"><img src="${esc(src)}" alt="${esc(caps[i] || "Gallery")}" loading="lazy"/><div class="cap">${esc(caps[i] || "Gallery")}</div></div>`
+          (src, i) =>
+            `<div class="shot" data-gallery-index="${i}" data-ai-id="media.gallery.${i}" data-gallery-label="${esc(caps[i] || "Gallery")}" role="button" tabindex="0" title="Edit ${esc(caps[i] || "Gallery")} image">
+              <img data-ai-id="media.gallery.${i}" ${mediaImgAttrs(src)} alt="${esc(caps[i] || "Gallery")}" loading="lazy"/>
+              <div class="cap">${esc(caps[i] || "Gallery")}</div>
+            </div>`
         )
         .join("")}
     </div>
   </section>`;
 }
 
-export function renderSplitMedia(theme: MediaTheme, brand: string, accent: string): string {
-  const img = theme.gallery[1] || theme.hero;
-  return `<section class="wrap" style="padding-top:48px;padding-bottom:24px">
+export function renderSplitMedia(
+  theme: MediaTheme,
+  brand: string,
+  accent: string,
+  copy?: { title?: string; subtitle?: string; trust?: string; cta?: string; secondaryCta?: string }
+): string {
+  const img = theme.split || theme.gallery[1] || theme.hero;
+  const title = copy?.title || "A polished layout with depth";
+  const subtitle =
+    copy?.subtitle ||
+    "Layered photography, icon badges, and conversion-ready CTAs — the same ingredients modern AI site builders use.";
+  const trust = copy?.trust || "Trusted by teams shipping faster";
+  const cta = copy?.cta || "Get started";
+  const secondaryCta = copy?.secondaryCta || "View gallery";
+  return `<section class="wrap split-media-section" style="padding-top:48px;padding-bottom:24px" data-ai-section="split" data-ai-id="home.split" id="split">
     <div class="split-media">
       <div>
         <div class="eyebrow">${iconHTML("users")} Built for ${esc(brand)}</div>
-        <h2>A polished layout with depth</h2>
-        <p class="lead">Layered photography, icon badges, and conversion-ready CTAs — the same ingredients modern AI site builders use.</p>
+        <h2 data-ai-id="visual.split.title">${esc(title)}</h2>
+        <p class="lead" data-ai-id="visual.split.subtitle">${esc(subtitle)}</p>
         <div class="avatar-row">
           <div class="avs">
             ${(theme.gallery.slice(0, 4) || [])
               .map(
                 (u, i) =>
-                  `<img src="${esc(u)}&h=80&w=80" alt="Team ${i + 1}" />`
+                  `<img data-ai-id="media.gallery.${i}" ${mediaImgAttrs(u, { w: 80, h: 80 })} alt="Team ${i + 1}" />`
               )
               .join("")}
           </div>
-          <div style="font-size:13px;color:#5b6472;font-weight:600">Trusted by teams shipping faster</div>
+          <div style="font-size:13px;color:#5b6472;font-weight:600" data-ai-id="visual.split.trust">${esc(trust)}</div>
         </div>
         <div style="margin-top:22px;display:flex;gap:10px;flex-wrap:wrap">
-          <a class="btn" href="contact.html">${iconHTML("calendar")} Get started</a>
-          <a class="btn-secondary" href="#gallery">${iconHTML("image")} View gallery</a>
+          <a class="btn" href="contact.html" data-ai-id="visual.split.cta">${iconHTML("calendar")} ${esc(cta)}</a>
+          <a class="btn-secondary" href="#gallery" data-ai-id="visual.split.secondaryCta">${iconHTML("image")} ${esc(secondaryCta)}</a>
         </div>
       </div>
       <div class="frame">
-        <img src="${esc(img)}" alt="${esc(brand)} preview" loading="lazy"/>
+        <img data-ai-id="media.split" ${mediaImgAttrs(img)} alt="${esc(brand)} preview" loading="lazy"/>
         <div class="float-chip">${iconHTML("check")} Live preview ready</div>
       </div>
     </div>
@@ -268,15 +485,15 @@ export function renderHomeHeroMedia(
   subtitle: string,
   cta: string
 ): string {
-  return `<section class="media-hero">
-    <img src="${esc(theme.hero)}" alt="${esc(brand)} hero" />
+  return `<section class="media-hero" data-ai-section="hero" data-ai-id="home.hero" id="hero">
+    <img data-ai-id="media.hero" ${mediaImgAttrs(theme.hero)} alt="${esc(brand)} hero" />
     <div class="shade"></div>
     <div class="hero-copy">
       <div class="eyebrow">${iconHTML("spark")} ${esc(brand)}</div>
-      <h1>${esc(title)}</h1>
-      <p class="lead" style="margin-top:14px">${esc(subtitle)}</p>
+      <h1 data-ai-id="hero.title">${esc(title)}</h1>
+      <p class="lead" style="margin-top:14px" data-ai-id="hero.subtitle">${esc(subtitle)}</p>
       <div class="hero-actions">
-        <a class="btn btn-light" href="contact.html">${iconHTML("calendar")} ${esc(cta)}</a>
+        <a class="btn btn-light" href="contact.html" data-ai-id="hero.ctaText">${iconHTML("calendar")} ${esc(cta)}</a>
         <a class="btn-secondary" style="color:#fff;border-color:rgba(255,255,255,.55)" href="#features">${iconHTML("spark")} Explore</a>
       </div>
     </div>
@@ -284,9 +501,9 @@ export function renderHomeHeroMedia(
 }
 
 export function renderPageBanner(theme: MediaTheme, label: string): string {
-  const img = theme.gallery[2] || theme.hero;
-  return `<section class="page-banner">
-    <img src="${esc(img)}" alt="${esc(label)}" />
+  const img = theme.banner || theme.gallery[2] || theme.hero;
+  return `<section class="page-banner" data-ai-section="banner" data-ai-id="home.banner" id="banner">
+    <img data-ai-id="media.banner" ${mediaImgAttrs(img)} alt="${esc(label)}" />
     <div class="shade"></div>
     <div class="label">
       <div class="eyebrow" style="color:#fff">${iconHTML("image")} ${esc(label)}</div>
@@ -305,20 +522,42 @@ export function renderVisualPackage(args: {
   heroSubtitle?: string;
   heroCta?: string;
   pageLabel?: string;
+  visualCopy?: {
+    split?: {
+      title?: string;
+      subtitle?: string;
+      trust?: string;
+      cta?: string;
+      secondaryCta?: string;
+    };
+    gallery?: { title?: string; subtitle?: string };
+    features?: {
+      title?: string;
+      subtitle?: string;
+      items?: { icon?: string; title?: string; body?: string }[];
+    };
+  };
+  layout?: {
+    galleryColumns?: number;
+    galleryVariant?: "featured" | "equal";
+    featureColumns?: number;
+    blocksColumns?: number;
+  };
 }): string {
   const { pageKey, brand, accent, theme } = args;
   if (pageKey === "home") {
-    // Enrich under template hero (avoid double headlines): icons, split photo, gallery
     return (
-      `<div id="features">${renderIconFeatures(theme, accent)}</div>` +
-      renderSplitMedia(theme, brand, accent) +
-      `<div id="gallery">${renderPhotoGallery(theme)}</div>`
+      renderIconFeatures(theme, accent, args.visualCopy?.features) +
+      renderSplitMedia(theme, brand, accent, args.visualCopy?.split) +
+      renderPhotoGallery(theme, undefined, {
+        columns: args.layout?.galleryColumns,
+        variant: args.layout?.galleryVariant,
+      }, args.visualCopy?.gallery)
     );
   }
-  // Inner pages: banner + compact icon strip
   return (
     renderPageBanner(theme, args.pageLabel || pageKey) +
-    `<section class="wrap" style="padding-top:36px;padding-bottom:0">
+    `<section class="wrap" style="padding-top:36px;padding-bottom:0" data-ai-section="features">
       <div class="feature-icons">
         ${(FEATURE_SETS[theme.category] || FEATURE_SETS.default)
           .slice(0, 3)

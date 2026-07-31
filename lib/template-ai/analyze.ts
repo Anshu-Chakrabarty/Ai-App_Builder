@@ -1,7 +1,7 @@
 // lib/template-ai/analyze.ts — Part 1: make template AI-ready (manifest + default config + knowledge)
 import type { Template, PageDef } from "@/lib/types";
 import { getPageDesign } from "@/lib/page-designs";
-import { resolveMediaTheme } from "@/lib/site-media";
+import { resolveMediaTheme, galleryLabelsFor } from "@/lib/site-media";
 import type {
   EditableField,
   SectionDef,
@@ -144,8 +144,9 @@ export function analyzeTemplate(args: {
   content: Record<string, any>;
   brandName: string;
   accent: string;
+  idea?: string;
 }): { manifest: TemplateManifest; config: SiteConfig; knowledge: TemplateKnowledge } {
-  const { template, pages, content, brandName, accent } = args;
+  const { template, pages, content, brandName, accent, idea } = args;
   const fields: EditableField[] = [];
   const sections = new Map<string, SectionDef>();
 
@@ -173,38 +174,223 @@ export function analyzeTemplate(args: {
     }
   }
 
-  // Imagery — hero/background + gallery become editable so AI can swap images
+  // Imagery — hero / split / banner / gallery are independently editable
   const media = resolveMediaTheme(
     template.category,
     template.id,
-    template.previewImage
+    template.previewImage,
+    [idea, brandName].filter(Boolean).join(" ")
   );
   ensureSection(sections, "home", "Imagery", "media");
   const mediaSectionId = "home.media";
-  fields.push({
-    id: "media.hero",
-    type: "image",
-    label: "Hero / background image",
-    sectionId: mediaSectionId,
-    pageKey: "home",
-    path: "media.hero",
-  });
+  fields.push(
+    {
+      id: "media.hero",
+      type: "image",
+      label: "Hero / background image",
+      sectionId: mediaSectionId,
+      pageKey: "home",
+      path: "media.hero",
+    },
+    {
+      id: "media.split",
+      type: "image",
+      label: "Split section image",
+      sectionId: mediaSectionId,
+      pageKey: "home",
+      path: "media.split",
+    },
+    {
+      id: "media.banner",
+      type: "image",
+      label: "Page banner image",
+      sectionId: mediaSectionId,
+      pageKey: "home",
+      path: "media.banner",
+    }
+  );
   media.gallery.slice(0, 6).forEach((_, i) => {
+    const cap = galleryLabelsFor(media.category)[i] || `Gallery ${i + 1}`;
     fields.push({
       id: `media.gallery.${i}`,
       type: "image",
-      label: `Gallery image ${i + 1}`,
+      label: `${cap} card image`,
       sectionId: mediaSectionId,
       pageKey: "home",
       path: `media.gallery.${i}`,
     });
   });
+
+  // Split-media copy (the “A polished layout with depth” block)
+  ensureSection(sections, "home", "Split media", "split");
+  const splitSectionId = "home.split";
+  const splitFields: Array<{ id: string; type: "text" | "textarea"; label: string; path: string }> = [
+    { id: "visual.split.title", type: "text", label: "Split title", path: "visual.split.title" },
+    { id: "visual.split.subtitle", type: "textarea", label: "Split subtitle", path: "visual.split.subtitle" },
+    { id: "visual.split.trust", type: "text", label: "Split trust line", path: "visual.split.trust" },
+    { id: "visual.split.cta", type: "text", label: "Split primary CTA", path: "visual.split.cta" },
+    { id: "visual.split.secondaryCta", type: "text", label: "Split secondary CTA", path: "visual.split.secondaryCta" },
+  ];
+  for (const f of splitFields) {
+    fields.push({
+      ...f,
+      sectionId: splitSectionId,
+      pageKey: "home",
+    });
+  }
+  const splitSec = sections.get(splitSectionId);
+  if (splitSec) {
+    splitSec.editableFields = ["media.split", ...splitFields.map((f) => f.id)];
+  }
+
+  // Gallery + features copy
+  ensureSection(sections, "home", "Gallery", "gallery");
+  ensureSection(sections, "home", "Features", "features");
+  const visualExtra: Array<{ id: string; type: "text" | "textarea"; label: string; path: string; sectionId: string }> = [
+    { id: "visual.gallery.title", type: "text", label: "Gallery title", path: "visual.gallery.title", sectionId: "home.gallery" },
+    { id: "visual.gallery.subtitle", type: "textarea", label: "Gallery subtitle", path: "visual.gallery.subtitle", sectionId: "home.gallery" },
+    { id: "visual.features.title", type: "text", label: "Features title", path: "visual.features.title", sectionId: "home.features" },
+    { id: "visual.features.subtitle", type: "textarea", label: "Features subtitle", path: "visual.features.subtitle", sectionId: "home.features" },
+    { id: "hero.title", type: "text", label: "Hero title", path: "hero.title", sectionId: "home.hero" },
+    { id: "hero.subtitle", type: "textarea", label: "Hero subtitle", path: "hero.subtitle", sectionId: "home.hero" },
+    { id: "hero.ctaText", type: "text", label: "Hero CTA", path: "hero.ctaText", sectionId: "home.hero" },
+  ];
+  for (const f of visualExtra) {
+    fields.push({
+      id: f.id,
+      type: f.type,
+      label: f.label,
+      sectionId: f.sectionId,
+      pageKey: "home",
+      path: f.path,
+    });
+  }
+  const galSec = sections.get("home.gallery");
+  if (galSec) {
+    galSec.editableFields = [
+      ...(galSec.editableFields || []),
+      "visual.gallery.title",
+      "visual.gallery.subtitle",
+      ...media.gallery.slice(0, 6).map((_, i) => `media.gallery.${i}`),
+    ];
+  }
+  const featSec = sections.get("home.features");
+  if (featSec) {
+    featSec.editableFields = [
+      ...(featSec.editableFields || []),
+      "visual.features.title",
+      "visual.features.subtitle",
+      "visual.features.items.0.title",
+      "visual.features.items.0.body",
+      "visual.features.items.1.title",
+      "visual.features.items.1.body",
+      "visual.features.items.2.title",
+      "visual.features.items.2.body",
+      "visual.features.items.3.title",
+      "visual.features.items.3.body",
+    ];
+  }
+
+  // Feature card bodies (editable)
+  for (let i = 0; i < 4; i++) {
+    fields.push(
+      {
+        id: `visual.features.items.${i}.title`,
+        type: "text",
+        label: `Feature ${i + 1} title`,
+        sectionId: "home.features",
+        pageKey: "home",
+        path: `visual.features.items.${i}.title`,
+      },
+      {
+        id: `visual.features.items.${i}.body`,
+        type: "textarea",
+        label: `Feature ${i + 1} body`,
+        sectionId: "home.features",
+        pageKey: "home",
+        path: `visual.features.items.${i}.body`,
+      }
+    );
+  }
+
+  // Banner (inner pages) + CTA + form + blocks
+  ensureSection(sections, "home", "Page banner", "banner");
+  ensureSection(sections, "home", "CTA band", "cta");
+  ensureSection(sections, "home", "Lead form", "form");
+  ensureSection(sections, "home", "Custom blocks", "blocks");
+  for (const f of [
+    { id: "visual.cta.title", type: "text" as const, label: "CTA title", path: "visual.cta.title", sectionId: "home.cta" },
+    { id: "visual.cta.blurb", type: "textarea" as const, label: "CTA blurb", path: "visual.cta.blurb", sectionId: "home.cta" },
+    { id: "visual.cta.primaryLabel", type: "text" as const, label: "CTA primary button", path: "visual.cta.primaryLabel", sectionId: "home.cta" },
+    { id: "visual.cta.secondaryLabel", type: "text" as const, label: "CTA secondary button", path: "visual.cta.secondaryLabel", sectionId: "home.cta" },
+    { id: "visual.form.title", type: "text" as const, label: "Form title", path: "visual.form.title", sectionId: "home.form" },
+    { id: "visual.form.blurb", type: "textarea" as const, label: "Form blurb", path: "visual.form.blurb", sectionId: "home.form" },
+    { id: "visual.form.submitLabel", type: "text" as const, label: "Form submit label", path: "visual.form.submitLabel", sectionId: "home.form" },
+  ]) {
+    fields.push({
+      id: f.id,
+      type: f.type,
+      label: f.label,
+      sectionId: f.sectionId,
+      pageKey: "home",
+      path: f.path,
+    });
+  }
+  const ctaSec = sections.get("home.cta");
+  if (ctaSec) {
+    ctaSec.editableFields = [
+      "visual.cta.title",
+      "visual.cta.blurb",
+      "visual.cta.primaryLabel",
+      "visual.cta.secondaryLabel",
+    ];
+  }
+  const formSec = sections.get("home.form");
+  if (formSec) {
+    formSec.editableFields = [
+      "visual.form.title",
+      "visual.form.blurb",
+      "visual.form.submitLabel",
+    ];
+  }
+  const blockSec = sections.get("home.blocks");
+  if (blockSec) {
+    blockSec.editableFields = ["layout.blocksColumns"];
+  }
+  const banSec = sections.get("home.banner");
+  if (banSec) {
+    banSec.editableFields = ["media.banner"];
+  }
+
   const mediaSec = sections.get(mediaSectionId);
   if (mediaSec) {
     mediaSec.editableFields = [
       "media.hero",
+      "media.split",
+      "media.banner",
       ...media.gallery.slice(0, 6).map((_, i) => `media.gallery.${i}`),
+      "layout.galleryColumns",
+      "layout.galleryVariant",
+      "layout.featureColumns",
+      "layout.blocksColumns",
     ];
+  }
+
+  // Layout knobs (columns) — agent can change without touching images
+  for (const f of [
+    { id: "layout.galleryColumns", label: "Gallery columns" },
+    { id: "layout.galleryVariant", label: "Gallery layout variant" },
+    { id: "layout.featureColumns", label: "Feature columns" },
+    { id: "layout.blocksColumns", label: "Blocks columns" },
+  ] as const) {
+    fields.push({
+      id: f.id,
+      type: "text",
+      label: f.label,
+      sectionId: mediaSectionId,
+      pageKey: "home",
+      path: f.id,
+    });
   }
 
   // Dedupe fields by id
@@ -242,12 +428,85 @@ export function analyzeTemplate(args: {
       hero: media.hero,
       gallery: [...media.gallery],
       category: media.category,
+      split: media.split,
+      banner: media.banner,
     },
     pages,
-    content: structuredClone(content),
+    content: {
+      ...structuredClone(content),
+      visual: {
+        split: {
+          title: "A polished layout with depth",
+          subtitle:
+            "Layered photography, icon badges, and conversion-ready CTAs — the same ingredients modern AI site builders use.",
+          trust: "Trusted by teams shipping faster",
+          cta: "Get started",
+          secondaryCta: "View gallery",
+        },
+        gallery: {
+          title: "Real imagery, ready to ship",
+          subtitle: "High-quality photos matched to your category — swap with your brand assets anytime.",
+        },
+        features: {
+          title: "Designed with icons, imagery & polish",
+          subtitle:
+            "Every generated site ships with styled components, photo layouts, and SVG icons — not just plain text.",
+          items: [
+            { title: "Modern experience", body: "Clean UI with purposeful motion and clarity.", icon: "spark" },
+            { title: "Built for people", body: "Flows that feel obvious on day one.", icon: "users" },
+            { title: "Reliable foundation", body: "Production-ready structure you can deploy.", icon: "shield" },
+            { title: "Clear next steps", body: "CTAs and forms that convert visitors.", icon: "check" },
+          ],
+        },
+        cta: {
+          title: `Ready to get started with ${brandName}?`,
+          blurb: "Book online in minutes — or tell us what you need and we’ll follow up.",
+          primaryLabel: "Book now",
+          secondaryLabel: "Talk to us",
+        },
+        form: {
+          title: "Request a callback",
+          blurb: "Leave your details and we’ll call you back.",
+          submitLabel: "Request callback",
+        },
+        ...(content as any)?.visual,
+      },
+    },
     sectionState: {},
     customPages: {},
     updatedAt: Date.now(),
+  };
+
+  // Merge defaults under any partial visual from content
+  const vis = config.content.visual || {};
+  config.content.visual = {
+    ...vis,
+    features: {
+      title: vis.features?.title || "Designed with icons, imagery & polish",
+      subtitle:
+        vis.features?.subtitle ||
+        "Every generated site ships with styled components, photo layouts, and SVG icons — not just plain text.",
+      items:
+        Array.isArray(vis.features?.items) && vis.features.items.length
+          ? vis.features.items
+          : [
+              { title: "Modern experience", body: "Clean UI with purposeful motion and clarity.", icon: "spark" },
+              { title: "Built for people", body: "Flows that feel obvious on day one.", icon: "users" },
+              { title: "Reliable foundation", body: "Production-ready structure you can deploy.", icon: "shield" },
+              { title: "Clear next steps", body: "CTAs and forms that convert visitors.", icon: "check" },
+            ],
+    },
+    cta: {
+      title: vis.cta?.title || `Ready to get started with ${brandName}?`,
+      blurb: vis.cta?.blurb || "Book online in minutes — or tell us what you need and we’ll follow up.",
+      primaryLabel: vis.cta?.primaryLabel || "Book now",
+      secondaryLabel: vis.cta?.secondaryLabel || "Talk to us",
+    },
+    form: {
+      title: vis.form?.title || "Request a callback",
+      blurb: vis.form?.blurb || "Leave your details and we’ll call you back.",
+      submitLabel: vis.form?.submitLabel || "Request callback",
+    },
   };
 
   const knowledge = buildKnowledge(template, manifest, accent, config);
@@ -497,6 +756,8 @@ function buildKnowledge(
       if (f.path.startsWith("media.")) {
         const m = config.media as any;
         if (f.path === "media.hero") preview = String(m?.hero || "").slice(0, 80);
+        else if (f.path === "media.split") preview = String(m?.split || "").slice(0, 80);
+        else if (f.path === "media.banner") preview = String(m?.banner || "").slice(0, 80);
         else if (f.path.startsWith("media.gallery.")) {
           const idx = Number(f.path.split(".").pop());
           preview = String(m?.gallery?.[idx] || "").slice(0, 80);

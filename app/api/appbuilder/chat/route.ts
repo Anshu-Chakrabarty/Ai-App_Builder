@@ -5,6 +5,9 @@ import { generateContentResilient } from "@/lib/gemini";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();

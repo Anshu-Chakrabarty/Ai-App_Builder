@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAppBuilder } from "@/lib/appbuilder/store";
-import { TEMPLATES } from "@/lib/appbuilder/catalog";
+import { ALL_TEMPLATES } from "@/lib/appbuilder/catalog";
 import { TemplateGallery } from "@/components/appbuilder/TemplateGallery";
 import type { RemoteTemplate } from "@/lib/appbuilder/remote-templates";
 
@@ -124,7 +124,7 @@ export default function TemplatesPage() {
   }
 
   const filters: { id: SourceFilter; label: string }[] = [
-    { id: "ours", label: `Visual gallery (${TEMPLATES.length})` },
+    { id: "ours", label: `Visual gallery (${ALL_TEMPLATES.length})` },
     { id: "all", label: `Live catalogs (${Object.values(counts).reduce((a, b) => a + b, 0) || "…"})` },
     { id: "local", label: `AppBuilder API (${counts.local ?? "…"})` },
     { id: "vercel", label: `Vercel / GitHub (${counts.vercel ?? "…"})` },
@@ -165,10 +165,11 @@ export default function TemplatesPage() {
               </div>
             ) : null}
             <TemplateGallery
-              templates={TEMPLATES}
+              templates={ALL_TEMPLATES}
               selectedId={active?.templateId}
+              idea={[active?.idea, active?.requirementsText].filter(Boolean).join("\n")}
               title="Choose a starting look"
-              subtitle="Click Preview for a full mockup, or Use template to continue in the wizard."
+              subtitle="Domain-matched to your idea when set — preview the full site map, then use a template."
               onSelect={(t) => useLocalTemplate(t.id, t.siteTemplateId, t.accent)}
               onUseSample={() => void useSampleZip()}
             />

@@ -18,6 +18,9 @@ import {
 import { parseAddPageRequests } from "@/lib/page-request";
 import type { PageDef } from "@/lib/types";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 type PendingPage = { label: string; key: string };
 
 function keyFromLabel(label: string): string {

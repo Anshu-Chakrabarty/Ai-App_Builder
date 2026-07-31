@@ -20,6 +20,9 @@ import { buildDockerfile, buildGithubActionsYaml, buildReadme } from "@/lib/appb
 import type { AppProject } from "@/lib/appbuilder/types";
 import { analyzeTemplate, renderSiteFromConfig } from "@/lib/template-ai";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 export async function POST(req: Request) {
@@ -44,7 +47,8 @@ export async function POST(req: Request) {
       project.features || [],
       briefPages.fromPrompt
         ? briefPages.pages.map((p) => ({ key: p.key, label: p.label }))
-        : project.pages || []
+        : project.pages || [],
+      idea
     );
 
     // Prefer explicit page list from prompt when user listed pages
@@ -214,6 +218,7 @@ export async function POST(req: Request) {
       content: copy,
       brandName,
       accent,
+      idea,
     });
 
     // Website Renderer: config + original template components (template code unchanged)

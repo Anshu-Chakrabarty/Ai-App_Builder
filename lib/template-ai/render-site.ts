@@ -46,8 +46,21 @@ export function renderSiteFromConfig(args: {
             config.brandName,
             config.pages
           );
-        } catch {
-          rendered[page.slug] = `<!doctype html><html><body><h1>${page.label}</h1></body></html>`;
+        } catch (err) {
+          console.error(`renderSiteFromConfig (bound) failed for "${page.key}":`, err);
+          try {
+            const c = configToCopy(config);
+            rendered[page.slug] = renderPage(
+              template,
+              { ...(template.fallback || {}), __meta: c.__meta, visual: c.visual },
+              page.key,
+              config.accent,
+              config.brandName,
+              config.pages
+            );
+          } catch {
+            rendered[page.slug] = `<!doctype html><html><body><h1>${page.label}</h1></body></html>`;
+          }
         }
       }
     }
@@ -80,8 +93,25 @@ export function renderSiteFromConfig(args: {
         config.brandName,
         pages
       );
-    } catch {
-      html[page.slug] = `<!doctype html><html><body><h1>${page.label}</h1><p>Render error</p></body></html>`;
+    } catch (err) {
+      console.error(`renderSiteFromConfig failed for page "${page.key}":`, err);
+      try {
+        // Last resort: template fallback only (ignore corrupted AI content shape)
+        html[page.slug] = renderPage(
+          template,
+          { ...(template.fallback || {}), __meta: copy.__meta, visual: copy.visual },
+          page.key,
+          config.accent,
+          config.brandName,
+          pages
+        );
+      } catch (err2) {
+        console.error(`renderSiteFromConfig fallback also failed for "${page.key}":`, err2);
+        html[page.slug] = `<!doctype html><html><body style="font-family:system-ui;padding:40px">
+<h1>${page.label}</h1>
+<p>This page could not be rendered. Click <strong>Regenerate Site</strong> to rebuild it.</p>
+</body></html>`;
+      }
     }
   }
 

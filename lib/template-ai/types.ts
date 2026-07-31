@@ -50,11 +50,15 @@ export type SiteConfig = {
   brandName: string;
   accent: string;
   theme?: Record<string, string>;
-  /** Editable imagery — hero/background/gallery. AI can swap these by URL. */
+  /** Editable imagery — hero/split/banner/gallery. AI can swap these by URL. */
   media?: {
     hero: string;
     gallery: string[];
     category: string;
+    /** Split-media section photo (NOT the full-bleed hero) */
+    split?: string;
+    /** Inner-page banner image */
+    banner?: string;
     /** Optional page background override (color or CSS gradient) */
     background?: string;
   };
@@ -76,11 +80,21 @@ export type SiteConfig = {
       content: Record<string, any>;
     }
   >;
+  /**
+   * Visual layout knobs — change columns/alignment without rewriting images or copy.
+   * galleryVariant: featured = asymmetric masonry; equal = uniform N-column grid.
+   */
+  layout?: {
+    galleryColumns?: number;
+    galleryVariant?: "featured" | "equal";
+    featureColumns?: number;
+    blocksColumns?: number;
+  };
   updatedAt: number;
 };
 
 export type ConfigUpdate = {
-  type: EditableFieldType | "section" | "page" | "theme" | "delete";
+  type: EditableFieldType | "section" | "page" | "theme" | "layout" | "delete";
   id: string;
   value?: any;
   url?: string;

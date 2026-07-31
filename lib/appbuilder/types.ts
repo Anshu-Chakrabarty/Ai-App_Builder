@@ -111,6 +111,25 @@ export type AppProject = {
     recommendedStack: string;
   };
   chat: { role: "user" | "assistant"; text: string }[];
+  /** Structured Studio work journal for AI continuity */
+  workLog?: {
+    at: number;
+    prompt: string;
+    summary: string;
+    ops?: string[];
+  }[];
+  /** Recent site snapshots for Undo (restore previous design) */
+  siteHistory?: {
+    at: number;
+    label: string;
+    site: NonNullable<AppProject["site"]>;
+  }[];
+  /** Last Studio target — used for follow-up prompts (“make it shorter”) */
+  lastStudioTarget?: {
+    id: string;
+    kind?: string;
+    label?: string;
+  } | null;
   pages: { key: string; label: string }[];
   site?: {
     /** Legacy copy mirror of config.content for compatibility */

@@ -14,9 +14,13 @@ import {
 import {
   iconHTML,
   mediaCSS,
+  layoutOverrideCSS,
   resolveMediaTheme,
   renderVisualPackage,
   renderOptionalHomeHero,
+  ensureGalleryUrls,
+  isBrokenMediaUrl,
+  FALLBACK_IMAGE,
 } from "./site-media";
 
 export const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
@@ -28,7 +32,16 @@ export const DISPLAY =
 export const esc = (s: unknown): string =>
   String(s ?? "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-function baseCSS(accent: string, font: string): string {
+function baseCSS(
+  accent: string,
+  font: string,
+  layout?: {
+    galleryColumns?: number;
+    galleryVariant?: "featured" | "equal";
+    featureColumns?: number;
+    blocksColumns?: number;
+  } | null
+): string {
   return `
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap');
     *{margin:0;padding:0;box-sizing:border-box}
@@ -60,6 +73,7 @@ function baseCSS(accent: string, font: string): string {
     footer .wrap-foot{display:contents}
     ${interactiveCSS(accent)}
     ${mediaCSS(accent)}
+    ${layoutOverrideCSS(layout)}
     @media(max-width:720px){nav .links a:not(.nav-cta){display:none}}
   `;
 }
@@ -105,8 +119,27 @@ function widgetsForPage(copy: any, pageKey: string, brand: string): SiteWidget[]
     ? copy.__widgets[pageKey]
     : [];
   const defaults: SiteWidget[] = [];
+  const vis = copy?.visual || {};
   if (pageKey === "home" && stored.length === 0) {
-    defaults.push(defaultHomeCta(brand), defaultHomeLeadForm());
+    const baseCta = defaultHomeCta(brand) as Extract<SiteWidget, { type: "cta-band" }>;
+    const cta: Extract<SiteWidget, { type: "cta-band" }> = {
+      type: "cta-band",
+      title: vis.cta?.title || baseCta.title,
+      blurb: vis.cta?.blurb || baseCta.blurb,
+      primaryLabel: vis.cta?.primaryLabel || baseCta.primaryLabel,
+      primaryHref: baseCta.primaryHref,
+      secondaryLabel: vis.cta?.secondaryLabel || baseCta.secondaryLabel,
+      secondaryHref: baseCta.secondaryHref,
+    };
+    const baseForm = defaultHomeLeadForm() as Extract<SiteWidget, { type: "lead-form" }>;
+    const form: Extract<SiteWidget, { type: "lead-form" }> = {
+      type: "lead-form",
+      title: vis.form?.title || baseForm.title,
+      blurb: vis.form?.blurb || baseForm.blurb,
+      fields: baseForm.fields,
+      submitLabel: vis.form?.submitLabel || baseForm.submitLabel,
+    };
+    defaults.push(cta, form);
   }
   if (pageKey === "contact") {
     const hasForm = stored.some((w) => w.type === "lead-form");
@@ -127,6 +160,45 @@ function heroBitsFromCopy(copy: any, brand: string) {
   };
 }
 
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+/**
+ * Fill missing/invalid template fields from fallback so `template.render`
+ * never crashes on wiped hero/lists after AI edits.
+ * Copy values win when shape-compatible; `__*` + `visual` always from copy.
+ */
+export function mergeTemplateFallback(fallback: unknown, copy: unknown): any {
+  const fill = (base: any, overlay: any): any => {
+    if (Array.isArray(base)) {
+      return Array.isArray(overlay) && overlay.length > 0 ? overlay : base;
+    }
+    if (isPlainObject(base)) {
+      if (!isPlainObject(overlay)) return structuredClone(base);
+      const out: Record<string, any> = { ...structuredClone(base) };
+      for (const [k, v] of Object.entries(overlay)) {
+        if (k in out) out[k] = fill(out[k], v);
+        else out[k] = v;
+      }
+      return out;
+    }
+    if (overlay === undefined || overlay === null || overlay === "") return base;
+    return overlay;
+  };
+
+  const merged = fill(
+    fallback && typeof fallback === "object" ? structuredClone(fallback) : {},
+    copy && typeof copy === "object" ? copy : {}
+  );
+  if (copy && typeof copy === "object") {
+    for (const [k, v] of Object.entries(copy as Record<string, unknown>)) {
+      if (k.startsWith("__") || k === "visual") merged[k] = v;
+    }
+  }
+  return merged;
+}
+
 /** Build a complete standalone HTML document for one page of a site. */
 export function renderPage(
   template: Template,
@@ -142,36 +214,62 @@ export function renderPage(
     return `<!doctype html><html><body><p>Unknown page</p></body></html>`;
   }
 
+  // Always fill required template shape (hero, featured, etc.) before render
+  const safeCopy = mergeTemplateFallback(template.fallback, copy);
+
   const base = resolveMediaTheme(
     template.category,
     template.id,
-    template.previewImage
+    template.previewImage,
+    brand
   );
-  const metaMedia = (copy as any)?.__meta?.media;
+  const metaMedia = (safeCopy as any)?.__meta?.media;
+  const category = (metaMedia?.category as string) || base.category;
+  const rawGallery =
+    Array.isArray(metaMedia?.gallery) && metaMedia.gallery.length
+      ? (metaMedia.gallery as string[])
+      : base.gallery;
+  const gallery = ensureGalleryUrls(rawGallery, category, 6);
   const theme = {
-    hero: (metaMedia?.hero as string) || base.hero,
-    gallery:
-      Array.isArray(metaMedia?.gallery) && metaMedia.gallery.length
-        ? (metaMedia.gallery as string[])
-        : base.gallery,
-    category: (metaMedia?.category as string) || base.category,
+    hero: isBrokenMediaUrl(metaMedia?.hero) ? base.hero : (metaMedia?.hero as string) || base.hero,
+    gallery,
+    category,
+    split: isBrokenMediaUrl(metaMedia?.split)
+      ? gallery[1] || base.split
+      : (metaMedia?.split as string) || gallery[1] || base.split,
+    banner: isBrokenMediaUrl(metaMedia?.banner)
+      ? gallery[2] || base.banner
+      : (metaMedia?.banner as string) || gallery[2] || base.banner,
   };
+  // never leave empty hero
+  if (isBrokenMediaUrl(theme.hero)) theme.hero = FALLBACK_IMAGE;
   const bgOverride: string =
-    metaMedia?.background || (copy as any)?.__meta?.theme?.background || "";
-  const hero = heroBitsFromCopy(copy, brand);
+    metaMedia?.background || (safeCopy as any)?.__meta?.theme?.background || "";
+  const hero = heroBitsFromCopy(safeCopy, brand);
+  const visualCopy = (safeCopy as any)?.visual || {};
+  const layout =
+    (safeCopy as any)?.__meta?.layout ||
+    (safeCopy as any)?.__meta?.theme?.layout ||
+    null;
 
   let body = "";
   if (page.designId?.startsWith("custom:")) {
     const customId = page.designId.slice("custom:".length);
-    const pageCopy = copy?.[page.key] ?? {};
+    const pageCopy = safeCopy?.[page.key] ?? {};
     body = renderCustomDesign(pageCopy.__customDesign || customId, pageCopy, accent);
   } else if (page.designId) {
     const design = getPageDesign(page.designId);
-    const pageCopy = copy?.[page.key] ?? design?.fallback ?? {};
+    const pageCopy = safeCopy?.[page.key] ?? design?.fallback ?? {};
     body = design ? design.render(pageCopy, accent, brand) : `<section class="wrap"><p>Missing design</p></section>`;
   } else {
-    body = template.render(copy, accent, brand, pageKey);
+    body = template.render(safeCopy, accent, brand, pageKey);
   }
+
+  // Stamp template mid-page sections so clicks + AI can target them
+  const contentKeys = Object.keys(safeCopy || {}).filter(
+    (k) => !k.startsWith("__") && k !== "visual" && typeof (safeCopy as any)[k] === "object"
+  );
+  body = stampTemplateSections(body, pageKey, contentKeys);
 
   const visual = renderVisualPackage({
     pageKey,
@@ -182,6 +280,8 @@ export function renderPage(
     heroSubtitle: hero.subtitle,
     heroCta: hero.cta,
     pageLabel: page.label,
+    visualCopy,
+    layout,
   });
 
   if (pageKey === "home") {
@@ -200,40 +300,119 @@ export function renderPage(
     body = visual + body;
   }
 
-  const widgets = widgetsForPage(copy, pageKey, brand);
+  const widgets = widgetsForPage(safeCopy, pageKey, brand);
   if (widgets.length) {
-    body +=
-      `<section style="padding-top:24px;padding-bottom:40px">` +
-      widgets.map((w) => renderWidget(w, accent)).join("") +
-      `</section>`;
+    body += widgets.map((w) => renderWidget(w, accent)).join("");
   }
 
-  const htmlBlocks = Array.isArray(copy?.__htmlBlocks?.[pageKey])
-    ? copy.__htmlBlocks[pageKey]
+  const htmlBlocks = Array.isArray(safeCopy?.__htmlBlocks?.[pageKey])
+    ? safeCopy.__htmlBlocks[pageKey]
     : [];
   if (htmlBlocks.length) {
     const prepend = htmlBlocks
       .filter((b: any) => b?.action === "prepend" && b.html)
       .map((b: any) => b.html)
       .join("");
-    const append = htmlBlocks
-      .filter((b: any) => b?.action !== "prepend" && b.html)
-      .map((b: any) => b.html)
-      .join("");
-    if (prepend) body = prepend + body;
-    if (append) body += append;
+    const appendItems = htmlBlocks.filter(
+      (b: any) => b?.action !== "prepend" && b?.action !== "replace" && b.html
+    );
+    const replaceItems = htmlBlocks.filter((b: any) => b?.action === "replace" && b.html);
+    const wrapBlocks = (html: string) => {
+      if (!html) return "";
+      const cols = layout?.blocksColumns;
+      if (cols && cols >= 2) {
+        return `<div class="html-blocks-grid" data-ai-section="blocks" data-ai-id="home.blocks" id="blocks">${html}</div>`;
+      }
+      return `<div data-ai-section="blocks" data-ai-id="home.blocks" id="blocks">${html}</div>`;
+    };
+    if (replaceItems.length) {
+      body = wrapBlocks(replaceItems.map((b: any) => b.html).join(""));
+    } else {
+      if (prepend) body = wrapBlocks(prepend) + body;
+      if (appendItems.length) {
+        body += wrapBlocks(appendItems.map((b: any) => b.html).join(""));
+      }
+    }
   }
 
   body = rewriteMissingPageLinks(body, allPages);
+  body = applySectionVisibility(
+    body,
+    (safeCopy as any)?.__meta?.sectionState || null
+  );
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(brand)} — ${esc(page.label)}</title>
 <meta name="description" content="${esc(hero.subtitle)}">
-<style>${baseCSS(accent, template.font)}${
+<style>${baseCSS(accent, template.font, layout)}${
     bgOverride ? `\nbody{background:${bgOverride} !important}` : ""
   }</style></head>
 <body>${navHTML(brand, allPages, page.slug, theme.hero)}${body}${footerHTML(brand)}</body></html>`;
+}
+
+/** Tag unmarked <section>s so Studio/AI can target template body blocks. */
+function stampTemplateSections(html: string, pageKey: string, contentKeys: string[]): string {
+  let idx = 0;
+  return html.replace(/<section(\s[^>]*)?>/gi, (full, attrs = "") => {
+    if (/data-ai-section\s*=/i.test(attrs || "")) return full;
+    idx += 1;
+    const idAttr = ((attrs || "").match(/\bid=["']([^"']+)/i) || [])[1];
+    const cls = ((attrs || "").match(/\bclass=["']([^"']+)/i) || [])[1] || "";
+    let name =
+      idAttr ||
+      (/hero/i.test(cls) ? "hero" : "") ||
+      (/service/i.test(cls) ? "services" : "") ||
+      (/work|portfolio|project/i.test(cls) ? "work" : "") ||
+      (/about/i.test(cls) ? "about" : "") ||
+      (/contact/i.test(cls) ? "contact" : "") ||
+      (/capabilit/i.test(cls) ? "capabilities" : "") ||
+      (/highlight/i.test(cls) ? "highlights" : "") ||
+      (/feature/i.test(cls) ? "featured" : "") ||
+      (/shop|product/i.test(cls) ? "shop" : "") ||
+      "";
+    if (!name) {
+      const match = contentKeys.find(
+        (k) => k !== "hero" && k !== "contact" // hero/contact often elsewhere
+      );
+      // Prefer ordered content keys for unmarked sections
+      name = contentKeys[Math.min(idx - 1, contentKeys.length - 1)] || `section-${idx}`;
+      void match;
+    }
+    if (contentKeys.includes(name) || !name) {
+      /* keep */
+    } else {
+      const fuzzy = contentKeys.find((k) => name.includes(k) || k.includes(name));
+      if (fuzzy) name = fuzzy;
+    }
+    const canonical = name.includes(".") ? name : `${pageKey}.${name}`;
+    const cleaned = (attrs || "")
+      .replace(/\sid=["'][^"']*["']/i, "")
+      .replace(/\sdata-ai-id=["'][^"']*["']/i, "");
+    return `<section data-ai-section="${name}" data-ai-id="${canonical}" id="${name}"${cleaned}>`;
+  });
+}
+
+/** Honor config.sectionState hide/show for data-ai-section / data-ai-id. */
+function applySectionVisibility(
+  html: string,
+  sectionState: Record<string, { visible?: boolean; order?: number }> | null
+): string {
+  if (!sectionState) return html;
+  let out = html;
+  for (const [id, state] of Object.entries(sectionState)) {
+    if (state?.visible !== false) continue;
+    const key = id.replace(/^home\./, "");
+    const patterns = [id, key].filter(Boolean);
+    for (const p of patterns) {
+      const re = new RegExp(
+        `<(section|div|header)(\\s[^>]*?(?:data-ai-section|data-ai-id)=["']${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["'][^>]*)>`,
+        "gi"
+      );
+      out = out.replace(re, `<$1$2 hidden style="display:none!important">`);
+    }
+  }
+  return out;
 }
 
 /** Point hrefs at existing pages only (prompt-driven sites omit template defaults). */

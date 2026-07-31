@@ -42,6 +42,8 @@ function substituteBindings(html: string, config: SiteConfig): string {
     if (path === "accent" || path === "theme.primary") return esc(config.accent);
 
     if (path === "media.hero") return esc(config.media?.hero || "");
+    if (path === "media.split") return esc(config.media?.split || "");
+    if (path === "media.banner") return esc(config.media?.banner || "");
     if (path === "media.background") return esc(config.media?.background || "");
     if (path.startsWith("media.gallery.")) {
       const idx = Number(path.split(".").pop());

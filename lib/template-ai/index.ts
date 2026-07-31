@@ -17,9 +17,11 @@ export {
   getByPath,
   setByPath,
   listEditableCatalog,
+  listSectionMap,
 } from "./config";
 export { renderSiteFromConfig } from "./render-site";
 export { renderBoundPages } from "./render-bound";
 export { runWebsiteAgent, materializeNewPages } from "./agent";
+export type { AgentHistoryTurn, AgentWorkEntry } from "./agent";
 export { ingestZipBuffer, ingestHtmlString } from "./ingest/from-zip";
 export { makeIngestStubTemplate } from "./stub-template";

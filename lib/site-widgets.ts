@@ -74,18 +74,18 @@ export function interactiveScript(): string {
 
 export function renderWidget(widget: SiteWidget, accent: string): string {
   if (widget.type === "cta-band") {
-    return `<div class="wrap"><div class="cta-band">
-      <h3>${iconHTML("spark")} ${esc(widget.title)}</h3>
-      ${widget.blurb ? `<p>${esc(widget.blurb)}</p>` : ""}
+    return `<section class="wrap" data-ai-section="cta" data-ai-id="home.cta" id="cta"><div class="cta-band">
+      <h3 data-ai-id="visual.cta.title">${iconHTML("spark")} ${esc(widget.title)}</h3>
+      ${widget.blurb ? `<p data-ai-id="visual.cta.blurb">${esc(widget.blurb)}</p>` : ""}
       <div class="btn-row">
-        <a class="btn" href="${esc(widget.primaryHref || "contact.html")}" style="background:#fff;color:${accent}">${iconHTML("calendar")} ${esc(widget.primaryLabel)}</a>
+        <a class="btn" href="${esc(widget.primaryHref || "contact.html")}" style="background:#fff;color:${accent}" data-ai-id="visual.cta.primaryLabel">${iconHTML("calendar")} ${esc(widget.primaryLabel)}</a>
         ${
           widget.secondaryLabel
-            ? `<a class="btn-ghost" href="${esc(widget.secondaryHref || "#")}">${iconHTML("phone")} ${esc(widget.secondaryLabel)}</a>`
+            ? `<a class="btn-ghost" href="${esc(widget.secondaryHref || "#")}" data-ai-id="visual.cta.secondaryLabel">${iconHTML("phone")} ${esc(widget.secondaryLabel)}</a>`
             : ""
         }
       </div>
-    </div></div>`;
+    </div></section>`;
   }
 
   const fields = widget.fields
@@ -105,15 +105,15 @@ export function renderWidget(widget: SiteWidget, accent: string): string {
     })
     .join("");
 
-  return `<div class="wrap"><form class="site-form" data-site-form data-success="Submitted — thank you!">
-    <h3>${iconHTML("mail")} ${esc(widget.title)}</h3>
-    ${widget.blurb ? `<p>${esc(widget.blurb)}</p>` : ""}
+  return `<section class="wrap" data-ai-section="form" data-ai-id="home.form" id="form"><form class="site-form" data-site-form data-success="Submitted — thank you!">
+    <h3 data-ai-id="visual.form.title">${iconHTML("mail")} ${esc(widget.title)}</h3>
+    ${widget.blurb ? `<p data-ai-id="visual.form.blurb">${esc(widget.blurb)}</p>` : ""}
     ${fields}
     <div class="form-actions">
-      <button class="btn" type="submit">${iconHTML("check")} ${esc(widget.submitLabel || "Submit")}</button>
+      <button class="btn" type="submit" data-ai-id="visual.form.submitLabel">${iconHTML("check")} ${esc(widget.submitLabel || "Submit")}</button>
       <span class="hint">Demo form — wires to your backend when you deploy.</span>
     </div>
-  </form></div>`;
+  </form></section>`;
 }
 
 export function defaultContactForm(brand: string): SiteWidget {

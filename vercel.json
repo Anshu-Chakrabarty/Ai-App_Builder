@@ -1,5 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "regions": ["iad1"]
+  "regions": ["iad1"],
+  "functions": {
+    "app/api/appbuilder/build/route.ts": { "maxDuration": 60 },
+    "app/api/appbuilder/modify-site/route.ts": { "maxDuration": 60 },
+    "app/api/appbuilder/analyze/route.ts": { "maxDuration": 60 },
+    "app/api/appbuilder/chat/route.ts": { "maxDuration": 60 },
+    "app/api/appbuilder/ingest-template/route.ts": { "maxDuration": 60 },
+    "app/api/generate/route.ts": { "maxDuration": 60 },
+    "app/api/modify/route.ts": { "maxDuration": 60 }
+  }
 }

@@ -69,6 +69,8 @@ export function createBlankProject(partial?: Partial<AppProject>): AppProject {
     pricingPlan: "professional",
     amc: true,
     chat: [],
+    workLog: [],
+    siteHistory: [],
     pages: [...DEFAULT_PAGES],
     deployProgress: {
       previewEnv: "not_started",
@@ -115,6 +117,16 @@ export function analyzeIdeaLocal(idea: string) {
       "Staff & Roles"
     );
     features = ["auth", "dashboard", "team", "calendar", "notifications", "activity", "files", "reports"];
+  } else if (/food|delivery|restaurant|cafe|dining|menu|meal/i.test(lower)) {
+    modules.push(
+      "Restaurant Listings",
+      "Menu View",
+      "Shopping Cart",
+      "Checkout",
+      "Order Tracking",
+      "User Profile"
+    );
+    features = ["auth"];
   } else if (/ecommerce|shop|store|cart/i.test(lower)) {
     modules.push(
       "Product Catalog",
@@ -125,6 +137,7 @@ export function analyzeIdeaLocal(idea: string) {
       "Customer Accounts",
       "Admin Dashboard"
     );
+    features = ["auth"];
   } else if (/crm|sales|lead/i.test(lower)) {
     modules.push("Leads", "Contacts", "Deals Pipeline", "Tasks", "Email", "Reports");
   } else {
@@ -181,6 +194,53 @@ export function prevStep(step: WizardStepId): WizardStepId | null {
 const STORAGE_KEY = "appbuilder_projects_v1";
 const ACTIVE_KEY = "appbuilder_active_v1";
 
+/** Drop heavy fields so undo history doesn't blow past localStorage quotas. */
+function slimSiteSnapshot(site: NonNullable<AppProject["site"]>): NonNullable<AppProject["site"]> {
+  return {
+    copy: site.copy,
+    pages: site.pages,
+    html: {}, // re-rendered on restore — never persist full HTML copies
+    usedFallback: site.usedFallback,
+    builtAt: site.builtAt,
+    manifest: site.manifest,
+    config: site.config,
+    knowledge: site.knowledge,
+    boundPages: site.boundPages,
+    // assets are often data-URLs — omit from history to save quota
+    source: site.source,
+  };
+}
+
+function slimProject(p: AppProject): AppProject {
+  return {
+    ...p,
+    chat: (p.chat || []).slice(-60).map((c) => ({
+      role: c.role,
+      text: String(c.text || "").slice(0, 1600),
+    })),
+    workLog: (p.workLog || []).slice(-30),
+    siteHistory: (p.siteHistory || []).slice(-4).map((h) => ({
+      at: h.at,
+      label: h.label,
+      site: slimSiteSnapshot(h.site),
+    })),
+  };
+}
+
+function aggressiveSlim(p: AppProject): AppProject {
+  const base = slimProject(p);
+  if (!base.site) return { ...base, siteHistory: [] };
+  return {
+    ...base,
+    siteHistory: [],
+    site: {
+      ...base.site,
+      // Keep html for active preview, but drop bound asset blobs if present
+      assets: undefined,
+    },
+  };
+}
+
 export function loadProjects(): AppProject[] {
   if (typeof window === "undefined") return [];
   try {
@@ -193,7 +253,18 @@ export function loadProjects(): AppProject[] {
 
 export function saveProjects(projects: AppProject[]) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+  const slimmed = projects.map(slimProject);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(slimmed));
+    return;
+  } catch (err) {
+    console.warn("localStorage save failed, retrying with aggressive slim:", err);
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(slimmed.map(aggressiveSlim)));
+  } catch (err) {
+    console.error("localStorage full — project edits may not persist:", err);
+  }
 }
 
 export function loadActiveId(): string | null {

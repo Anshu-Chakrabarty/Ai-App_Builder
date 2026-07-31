@@ -22,6 +22,7 @@ import {
   QUICK_IDEAS,
   STACK_EXTRAS,
   TEMPLATES,
+  ALL_TEMPLATES,
   THEME_PRESETS,
 } from "@/lib/appbuilder/catalog";
 import {
@@ -409,7 +410,11 @@ export default function WizardPage() {
   }
 
   const computeOpts = COMPUTE_OPTIONS[project?.deploy.cloud || "aws"] || COMPUTE_OPTIONS.aws;
-  const tmpl = TEMPLATES.find((t) => t.id === project?.templateId) || TEMPLATES[0];
+  const tmpl =
+    ALL_TEMPLATES.find((t) => t.id === project?.templateId) ||
+    TEMPLATES.find((t) => t.id === project?.templateId) ||
+    ALL_TEMPLATES[0] ||
+    TEMPLATES[0];
   const genPrice = PRICING.generation[project?.pricingPlan || "professional"].price;
   const amcPrice = project?.amc ? PRICING.amc[project.pricingPlan] : 0;
 
@@ -770,7 +775,7 @@ export default function WizardPage() {
                 className={`tab ${templateTab === "ours" ? "active" : ""}`}
                 onClick={() => setTemplateTab("ours")}
               >
-                Our Templates ({TEMPLATES.length})
+                Our Templates ({ALL_TEMPLATES.length})
               </button>
               <button
                 type="button"
@@ -837,10 +842,11 @@ export default function WizardPage() {
 
             {templateTab === "ours" && (
               <TemplateGallery
-                templates={TEMPLATES}
+                templates={ALL_TEMPLATES}
                 selectedId={project.templateId}
+                idea={[project.idea, project.requirementsText].filter(Boolean).join("\n")}
                 title="Browse templates"
-                subtitle="Preview any look, then select the one that fits your project."
+                subtitle="Domain-matched to your idea — preview the full site map, then select."
                 onSelect={(t) =>
                   updateActive({
                     templateId: t.id,

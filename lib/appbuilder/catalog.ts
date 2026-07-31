@@ -1,5 +1,6 @@
 // lib/appbuilder/catalog.ts — feature / stack / template catalogs from mockups
 import type { FeatureItem } from "./types";
+import { DOMAIN_TEMPLATES } from "./domain-catalog";
 
 export const FEATURE_CATALOG: FeatureItem[] = [
   {
@@ -241,6 +242,10 @@ export type CatalogTemplate = {
   accent: string;
   /** Short eyebrow for the card */
   badge?: string;
+  /** Keywords for idea → domain matching */
+  keywords?: string[];
+  /** Domain pack key (hospital, saas, …) */
+  domainKey?: string;
 };
 
 export const TEMPLATES: CatalogTemplate[] = [
@@ -390,11 +395,19 @@ export const TEMPLATES: CatalogTemplate[] = [
   },
 ];
 
+// Merge classic cards + expansive domain packs (hospital×styles, saas×styles, …)
+export const ALL_TEMPLATES: CatalogTemplate[] = [...TEMPLATES, ...DOMAIN_TEMPLATES];
+
 export const TEMPLATE_CATEGORIES = [
   { id: "all", label: "All templates" },
+  { id: "healthcare", label: "Healthcare" },
   { id: "admin", label: "Admin Dashboards" },
   { id: "project-management", label: "Project Management" },
   { id: "saas", label: "SaaS Applications" },
+  { id: "ecommerce", label: "E-commerce" },
+  { id: "education", label: "Education" },
+  { id: "hospitality", label: "Hospitality" },
+  { id: "lifestyle", label: "Lifestyle" },
   { id: "minimal", label: "Minimal & Clean" },
   { id: "corporate", label: "Corporate & Sites" },
 ];

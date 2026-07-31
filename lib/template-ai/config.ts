@@ -59,6 +59,7 @@ export function resolveUpdatePath(
   if (field) return field.path;
   // Allow direct dotted paths / known aliases
   if (update.id.startsWith("theme.")) return update.id;
+  if (update.id.startsWith("layout.")) return update.id;
   if (update.id === "brandName" || update.id === "accent") return update.id;
   return update.id;
 }
@@ -76,8 +77,15 @@ export function applyUpdatesToConfig(
     ...config,
     content: structuredClone(config.content),
     theme: { ...(config.theme || {}) },
+    layout: { ...(config.layout || {}) },
     media: config.media
-      ? { ...config.media, gallery: [...(config.media.gallery || [])] }
+      ? {
+          ...config.media,
+          gallery: [...(config.media.gallery || [])],
+          // Backfill split/banner for older projects so section edits stick
+          split: config.media.split || config.media.gallery?.[1] || config.media.hero,
+          banner: config.media.banner || config.media.gallery?.[2] || config.media.hero,
+        }
       : config.media,
     sectionState: { ...(config.sectionState || {}) },
     customPages: { ...(config.customPages || {}) },
@@ -134,17 +142,42 @@ export function applyUpdatesToConfig(
       next.theme![k] = value;
       continue;
     }
+    if (u.type === "layout" || u.id.startsWith("layout.")) {
+      const key = u.id.startsWith("layout.") ? u.id.slice("layout.".length) : String(u.id);
+      const layout = { ...(next.layout || {}) } as Record<string, any>;
+      if (op === "delete") {
+        delete layout[key];
+      } else if (value && typeof value === "object" && !Array.isArray(value)) {
+        Object.assign(layout, value);
+      } else {
+        layout[key] = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
+      }
+      next.layout = layout as SiteConfig["layout"];
+      continue;
+    }
 
     const path = resolveUpdatePath(u, manifest);
 
     // Imagery / background live in config.media, not content
     if (path === "media" || path.startsWith("media.")) {
-      const baseMedia = next.media || { hero: "", gallery: [], category: "default" };
+      const baseMedia = next.media || { hero: "", gallery: [] as string[], category: "default" };
       const mediaPath = path === "media" ? "" : path.slice("media.".length);
       if (op === "delete") {
         next.media = mediaPath ? deleteByPath(baseMedia, mediaPath) : baseMedia;
       } else {
-        next.media = mediaPath ? setByPath(baseMedia, mediaPath, value) : value;
+        // Reliable gallery[N] writes (setByPath can miss array indices)
+        const galMatch = mediaPath.match(/^gallery\.(\d+)$/);
+        if (galMatch) {
+          const i = Number(galMatch[1]);
+          const gallery = [...(baseMedia.gallery || [])];
+          while (gallery.length <= i) {
+            gallery.push(gallery[gallery.length - 1] || baseMedia.hero || "");
+          }
+          gallery[i] = String(value ?? "");
+          next.media = { ...baseMedia, gallery };
+        } else {
+          next.media = mediaPath ? setByPath(baseMedia, mediaPath, value) : value;
+        }
       }
       continue;
     }
@@ -170,6 +203,7 @@ export function configToCopy(config: SiteConfig): Record<string, any> {
       accent: config.accent,
       theme: config.theme,
       media: config.media,
+      layout: config.layout,
       sectionState: config.sectionState,
     },
   };
@@ -177,7 +211,33 @@ export function configToCopy(config: SiteConfig): Record<string, any> {
 
 export function listEditableCatalog(manifest: TemplateManifest): string {
   return manifest.editableFields
-    .slice(0, 120)
-    .map((f) => `- ${f.id} (${f.type}) on ${f.pageKey}/${f.sectionId}`)
+    .slice(0, 400)
+    .map((f) => `- ${f.id} (${f.type}) on ${f.pageKey}/${f.sectionId} — ${f.label}`)
+    .join("\n");
+}
+
+/**
+ * Explicit section map so the agent understands every block it can edit
+ * (hero, template sections, split, gallery, features, widgets, …).
+ */
+export function listSectionMap(
+  manifest: TemplateManifest,
+  pageKey: string,
+  sectionState?: SiteConfig["sectionState"]
+): string {
+  const secs = (manifest.sections || []).filter(
+    (s) => s.pageKey === pageKey || s.pageKey === "home" || s.pageKey === "site"
+  );
+  if (!secs.length) return "(no sections registered)";
+  return secs
+    .map((s) => {
+      const fields = (manifest.editableFields || [])
+        .filter((f) => f.sectionId === s.id || f.sectionId === s.component)
+        .map((f) => f.id)
+        .slice(0, 14);
+      const st = sectionState?.[s.id] || sectionState?.[s.component];
+      const vis = st?.visible === false ? "hidden" : "visible";
+      return `- ${s.id} (“${s.name}”) [${vis}] · ${s.component} · edit: ${fields.join(", ") || "section ops"}`;
+    })
     .join("\n");
 }

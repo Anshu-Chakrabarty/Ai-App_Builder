@@ -5,6 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import { useAppBuilder } from "@/lib/appbuilder/store";
 import { THEME_PRESETS } from "@/lib/appbuilder/catalog";
 import type { DesignOption } from "@/lib/types";
+import {
+  StudioPromptPanel,
+  type StudioTarget,
+} from "@/components/appbuilder/StudioPromptPanel";
+import { injectPreviewSelectScript } from "@/lib/studio/preview-select";
 
 type PendingPage = { label: string; key: string };
 
@@ -26,6 +31,84 @@ export default function StudioPage() {
   const [fullscreen, setFullscreen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
+  const [target, setTarget] = useState<StudioTarget | null>(null);
+  const [images, setImages] = useState<string[]>([]);
+
+  function sanitizeChatText(text: string): string {
+    return String(text || "")
+      .replace(/data:image\/[a-zA-Z0-9+.-]+;base64,[A-Za-z0-9+/=]+/g, "[image]")
+      .slice(0, 2000);
+  }
+
+  async function undoLastChange() {
+    const hist = project?.siteHistory || [];
+    if (!hist.length || !project?.site) return;
+    const last = hist[hist.length - 1];
+    setBusy(true);
+    setAssistantNote("Restoring previous design…");
+    try {
+      const res = await fetch("/api/appbuilder/modify-site", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idea: [project.idea, project.requirementsText].filter(Boolean).join("\n\n"),
+          siteTemplateId: project.siteTemplateId,
+          brandName: project.name,
+          accent: project.theme.primary,
+          copy: last.site.config?.content || last.site.copy || {},
+          pages: last.site.pages || project.site.pages,
+          pageKey: pageKey || "home",
+          instruction: "Restore previous design",
+          restoreSnapshot: true,
+          manifest: last.site.manifest || project.site.manifest,
+          config: last.site.config || project.site.config,
+          knowledge: last.site.knowledge || project.site.knowledge,
+          boundPages: last.site.boundPages || project.site.boundPages,
+          assets: project.site.assets,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Restore failed");
+      updateActive({
+        site: {
+          ...project.site,
+          copy: data.copy,
+          pages: data.pages || last.site.pages,
+          html: data.html,
+          usedFallback: false,
+          builtAt: Date.now(),
+          manifest: data.manifest || last.site.manifest,
+          config: data.config || last.site.config,
+          knowledge: data.knowledge || last.site.knowledge,
+          boundPages: data.boundPages || project.site.boundPages,
+        },
+        pages: (data.pages || last.site.pages || []).map((p: { key: string; label: string }) => ({
+          key: p.key,
+          label: p.label,
+        })),
+        siteHistory: hist.slice(0, -1),
+        chat: [
+          ...(project.chat || []),
+          { role: "assistant" as const, text: `Restored previous design (${last.label}).` },
+        ],
+        workLog: [
+          ...(project.workLog || []),
+          {
+            at: Date.now(),
+            prompt: "undo",
+            summary: `Restored: ${last.label}`,
+            ops: ["undo"],
+          },
+        ].slice(-40),
+      });
+      setPreviewTick((t) => t + 1);
+      setAssistantNote(`Restored previous design (${last.label}).`);
+    } catch (err) {
+      setAssistantNote(err instanceof Error ? err.message : "Undo failed");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (project) {
@@ -35,6 +118,10 @@ export default function StudioPage() {
       setTitleDraft(project.name);
     }
   }, [project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setTarget(null);
+  }, [pageKey]);
 
   useEffect(() => {
     if (!fullscreen) return;
@@ -48,6 +135,118 @@ export default function StudioPage() {
       document.body.style.overflow = "";
     };
   }, [fullscreen]);
+
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      if (!e.data) return;
+      if (e.data.type === "studio-navigate" && e.data.slug) {
+        const slug = String(e.data.slug).replace(/^\.\//, "");
+        const pages = project?.site?.pages || [];
+        const hit =
+          pages.find((p) => p.slug === slug || p.slug === slug.replace(/^\//, "")) ||
+          pages.find((p) => p.key === slug.replace(/\.html$/i, ""));
+        if (hit) {
+          setPageKey(hit.key);
+          setAssistantNote(`Browsing “${hit.label}” — full site structure`);
+        }
+        return;
+      }
+      if (e.data.type !== "studio-select" || !e.data.target) return;
+      const t = e.data.target as StudioTarget;
+      setTarget(t);
+      setAssistantNote(`Selected “${t.label}” — describe the change or upload an image.`);
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [project?.site?.pages]);
+
+  // Auto-heal broken preview HTML or dead gallery image URLs (e.g. Detail 404)
+  useEffect(() => {
+    const site = project?.site;
+    if (!site?.html || !site.config || !project) return;
+    const ideaText = [project.idea, project.requirementsText, project.name]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    const broken = Object.values(site.html).some((h) =>
+      /<p>Render error<\/p>/i.test(String(h || ""))
+    );
+    const mediaBlob =
+      String(site.config.media?.hero || "") +
+      (site.config.media?.gallery || []).join(" ") +
+      Object.values(site.html || {}).join(" ").slice(0, 50000);
+    const deadGallery = /photo-1581595220892-b245d5c2e3e8|photo-1523050854058-8df90110c9f1/.test(
+      mediaBlob
+    );
+    const mediaCat = String(site.config.media?.category || "");
+    const wantFood = /food|delivery|restaurant|cafe|dining|menu|meal/.test(ideaText);
+    const wrongDomain =
+      wantFood &&
+      (mediaCat === "healthcare" || mediaCat === "dental");
+    if (!broken && !deadGallery && !wrongDomain) return;
+    let cancelled = false;
+    const proj = project;
+    (async () => {
+      setAssistantNote(
+        deadGallery
+          ? "Fixing gallery images that failed to load…"
+          : wrongDomain
+            ? "Updating imagery to match your idea…"
+            : "Repairing broken Home preview…"
+      );
+      setBusy(true);
+      try {
+        const res = await fetch("/api/appbuilder/modify-site", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idea: [proj.idea, proj.requirementsText].filter(Boolean).join("\n\n"),
+            siteTemplateId: wrongDomain ? "ecommerce" : proj.siteTemplateId,
+            brandName: proj.name,
+            accent: proj.theme.primary,
+            copy: site.config?.content || site.copy || {},
+            pages: site.pages,
+            pageKey: "home",
+            instruction: "",
+            rerenderOnly: true,
+            manifest: site.manifest,
+            config: site.config,
+            knowledge: site.knowledge,
+            boundPages: site.boundPages,
+            assets: site.assets,
+          }),
+        });
+        const data = await res.json();
+        if (cancelled || !res.ok) return;
+        updateActive({
+          site: {
+            ...site,
+            copy: data.copy,
+            pages: data.pages || site.pages,
+            html: data.html,
+            usedFallback: site.usedFallback,
+            builtAt: Date.now(),
+            manifest: data.manifest || site.manifest,
+            config: data.config || site.config,
+            knowledge: data.knowledge || site.knowledge,
+          },
+          ...(wrongDomain ? { siteTemplateId: "ecommerce" } : {}),
+        });
+        setPreviewTick((t) => t + 1);
+        setAssistantNote(data.assistantMessage || "Gallery images repaired.");
+      } catch {
+        if (!cancelled) {
+          setAssistantNote("Couldn’t auto-fix images — click Regenerate Site.");
+        }
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id, project?.site?.builtAt]);
 
   if (!ready) return <div className="content">Loading studio…</div>;
   if (!project) {
@@ -63,16 +262,17 @@ export default function StudioPage() {
 
   const sitePages = project.site?.pages || [];
   const activePage = sitePages.find((p) => p.key === pageKey) || sitePages[0];
-  const html =
+  const rawHtml =
     (activePage && project.site?.html?.[activePage.slug]) ||
     `<!doctype html><html><body style="font-family:sans-serif;padding:40px;background:#111;color:#eee">
       <h1>No generated site yet</h1>
       <p>Go to Generate and click <strong>Confirm & Generate Site</strong>.</p>
     </body></html>`;
+  const html = injectPreviewSelectScript(rawHtml, target?.id);
 
   const previewKey = `${project.site?.builtAt || 0}-${pageKey}-${previewTick}-${
     activePage?.slug || ""
-  }-${(html || "").length}`;
+  }-${(html || "").length}-${target?.id || ""}`;
 
   async function applyChange(opts?: {
     selectedDesignId?: string;
@@ -82,10 +282,40 @@ export default function StudioPage() {
   }) {
     const proj = project;
     const message = opts?.message ?? prompt;
-    if ((!message.trim() && !opts?.selectedDesignId) || !proj?.site) return;
+    if ((!message.trim() && !opts?.selectedDesignId && images.length === 0) || !proj?.site) return;
+
+    // Local undo / restore — no API round-trip
+    if (/^\s*(undo|go back|restore|revert|previous design)\b/i.test(message.trim())) {
+      if ((proj.siteHistory || []).length) {
+        undoLastChange();
+        setPrompt("");
+      } else {
+        setAssistantNote("Nothing to undo yet — make an edit first.");
+      }
+      return;
+    }
+
     setBusy(true);
     setAssistantNote("");
     try {
+      // Snapshot config only (not full HTML) so localStorage doesn't break
+      const snapLabel = (message.trim() || "edit").slice(0, 64);
+      const priorSite = {
+        copy: structuredClone(proj.site.copy),
+        pages: structuredClone(proj.site.pages),
+        html: {} as Record<string, string>,
+        usedFallback: proj.site.usedFallback,
+        builtAt: proj.site.builtAt,
+        manifest: proj.site.manifest,
+        config: structuredClone(proj.site.config),
+        knowledge: proj.site.knowledge,
+        boundPages: proj.site.boundPages,
+        source: proj.site.source,
+      };
+      const scoped =
+        target && message.trim()
+          ? `[Target: ${target.label} (${target.id}, ${target.kind})]\n${message}`
+          : message;
       const res = await fetch("/api/appbuilder/modify-site", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -97,7 +327,7 @@ export default function StudioPage() {
           copy: proj.site.config?.content || proj.site.copy,
           pages: proj.site.pages,
           pageKey: activePage?.key || "home",
-          instruction: message || `Build page: ${opts?.pending?.label || ""}`,
+          instruction: scoped || `Build page: ${opts?.pending?.label || ""}`,
           selectedDesignId: opts?.selectedDesignId,
           pendingPage: opts?.pending || pendingPage,
           pendingQueue: opts?.queue ?? pendingQueue,
@@ -106,16 +336,41 @@ export default function StudioPage() {
           knowledge: proj.site.knowledge,
           boundPages: proj.site.boundPages,
           assets: proj.site.assets,
+          history: (proj.chat || []).slice(-40),
+          workLog: (proj.workLog || []).slice(-20),
+          target: (() => {
+            const explicit = target
+              ? { id: target.id, kind: target.kind, label: target.label }
+              : null;
+            if (explicit) return explicit;
+            const msg = message.trim();
+            if (
+              msg &&
+              (/\b(make it|change it|update it|fix it|tweak it|refine it|try again)\b/i.test(msg) ||
+                /^(shorter|longer|warmer|cooler|more|less|ok|okay|yes)[.!]?$/i.test(msg)) &&
+              !/\b(now |separately|new request|forget|start over|switch to)\b/i.test(msg)
+            ) {
+              return proj.lastStudioTarget || null;
+            }
+            return null;
+          })(),
+          images: images.length ? images : undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Modify failed");
 
+      const nextPages = data.pages || proj.site.pages;
+      const userText = sanitizeChatText(
+        (message.trim() || "Apply uploaded image") +
+          (target ? ` → ${target.label}` : "") +
+          (images.length ? ` [${images.length} image]` : "")
+      );
       updateActive({
         site: {
           ...proj.site,
           copy: data.copy,
-          pages: data.pages || proj.site.pages,
+          pages: nextPages,
           html: data.html,
           usedFallback: false,
           builtAt: Date.now(),
@@ -125,23 +380,56 @@ export default function StudioPage() {
           boundPages: data.boundPages || proj.site.boundPages,
           assets: data.assets || proj.site.assets,
         },
-        pages: (data.pages || proj.site.pages).map((p: { key: string; label: string }) => ({
+        pages: nextPages.map((p: { key: string; label: string }) => ({
           key: p.key,
           label: p.label,
         })),
+        siteHistory: [
+          ...(proj.siteHistory || []),
+          { at: Date.now(), label: snapLabel, site: priorSite },
+        ].slice(-10),
         chat: [
           ...proj.chat,
-          ...(message.trim() ? [{ role: "user" as const, text: message }] : []),
-          { role: "assistant" as const, text: data.assistantMessage || "Updated." },
-        ],
+          ...(message.trim() || images.length
+            ? [{ role: "user" as const, text: userText }]
+            : []),
+          {
+            role: "assistant" as const,
+            text: sanitizeChatText(data.assistantMessage || "Updated."),
+          },
+        ].slice(-120),
+        lastStudioTarget: target
+          ? { id: target.id, kind: target.kind, label: target.label }
+          : proj.lastStudioTarget || null,
+        workLog: [
+          ...(proj.workLog || []),
+          ...(data.workEntry
+            ? [data.workEntry]
+            : message.trim() || images.length
+              ? [
+                  {
+                    at: Date.now(),
+                    prompt: message || "uploaded image",
+                    summary: data.assistantMessage || "Updated",
+                    ops: (data.updates || []).map(
+                      (u: { op?: string; id?: string }) => `${u.op || "set"}:${u.id || ""}`
+                    ),
+                  },
+                ]
+              : []),
+        ].slice(-40),
       });
 
       setPreviewTick((t) => t + 1);
       setAssistantNote(data.assistantMessage || "Updated.");
-      if (message.trim()) {
-        setHistory((h) => [`${new Date().toLocaleTimeString()}: ${message.slice(0, 72)}`, ...h]);
+      if (message.trim() || images.length) {
+        setHistory((h) => [
+          `${new Date().toLocaleTimeString()}: ${data.assistantMessage?.slice(0, 72) || message.slice(0, 72)}`,
+          ...h,
+        ]);
       }
       setPrompt("");
+      setImages([]);
 
       if (data.status === "need_design") {
         setDesignOptions(data.options || []);
@@ -154,6 +442,9 @@ export default function StudioPage() {
       }
 
       if (data.newPageKey) setPageKey(data.newPageKey);
+      if (data.newPageKey === "home" || !nextPages.some((p: { key: string }) => p.key === pageKey)) {
+        setPageKey(data.newPageKey || "home");
+      }
     } catch (err) {
       const text = err instanceof Error ? err.message : "Modify failed";
       setAssistantNote(text);
@@ -381,12 +672,13 @@ export default function StudioPage() {
               style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}
             >
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, flex: 1 }}>
-                {(sitePages.length ? sitePages : project.pages).map((p) => (
+                {(sitePages.length ? sitePages : project.pages).map((p, i) => (
                   <button
                     key={p.key}
                     type="button"
                     className={`tab ${pageKey === p.key ? "active" : ""}`}
                     onClick={() => setPageKey(p.key)}
+                    title={`Page ${i + 1} of ${(sitePages.length ? sitePages : project.pages).length}`}
                   >
                     {p.label}
                   </button>
@@ -402,13 +694,56 @@ export default function StudioPage() {
                 ⛶ Full screen
               </button>
             </div>
-            <div className="preview-frame" style={{ minHeight: 560, padding: 0 }}>
+            {(sitePages.length ? sitePages : project.pages).length > 0 ? (
+              <div className="studio-sitemap-strip">
+                <span className="muted" style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                  Site structure
+                </span>
+                <ol className="studio-sitemap-list">
+                  {(sitePages.length ? sitePages : project.pages).map((p, i) => (
+                    <li key={p.key}>
+                      <button
+                        type="button"
+                        className={pageKey === p.key ? "on" : ""}
+                        onClick={() => setPageKey(p.key)}
+                      >
+                        <em>{i + 1}</em>
+                        {p.label}
+                        <span className="muted">
+                          {"slug" in p && typeof p.slug === "string" ? p.slug : `${p.key}.html`}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+                <p className="muted" style={{ fontSize: 11, margin: "6px 0 0" }}>
+                  Click any page above — or use nav links inside the preview — to browse the whole site.
+                </p>
+              </div>
+            ) : null}
+            <div className="preview-frame" style={{ minHeight: 560, padding: 0, position: "relative" }}>
               <iframe
                 key={previewKey}
                 title="Site preview"
                 srcDoc={html}
                 style={{ width: "100%", height: 560, border: "none", background: "#fff" }}
               />
+              <div
+                className="muted"
+                style={{
+                  position: "absolute",
+                  left: 10,
+                  bottom: 10,
+                  fontSize: 11,
+                  background: "rgba(255,255,255,.92)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 8,
+                  padding: "5px 8px",
+                  pointerEvents: "none",
+                }}
+              >
+                Click a section to select it · Alt+click for a field/image · links still work
+              </div>
             </div>
             {project.requirementsFileName ? (
               <div className="muted" style={{ marginTop: 8 }}>
@@ -418,48 +753,69 @@ export default function StudioPage() {
           </div>
 
           <div className="card">
-            <h3>AI prompt</h3>
-            <p className="muted" style={{ marginBottom: 8 }}>
-              AI Website Agent for <strong>{activePage?.label || pageKey}</strong>. Edits{" "}
-              <code>config</code> by field IDs (template code never changes). Ask to change copy,
-              hide sections, upgrade theme, or create pages from the component library.
-            </p>
-            <textarea
-              className="chat-input"
-              placeholder='Ask anything… e.g. "Delete the form on home", "Add a Book Now button under the hero", "Make it more premium", "What pages do I have?"'
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+            <StudioPromptPanel
+              prompt={prompt}
+              onPromptChange={setPrompt}
+              busy={busy}
               disabled={!!designOptions}
+              pageKey={activePage?.key || pageKey}
+              pageLabel={activePage?.label || pageKey}
+              manifest={project.site?.manifest}
+              target={target}
+              onTargetChange={setTarget}
+              images={images}
+              onImagesChange={setImages}
+              onSend={() => applyChange()}
+              chat={project.chat || []}
+              canUndo={!!(project.siteHistory && project.siteHistory.length)}
+              onUndo={undoLastChange}
+              onClearChat={() => {
+                updateActive({ chat: [], workLog: [] });
+                setAssistantNote("Chat cleared — site design unchanged.");
+              }}
             />
-            <div className="chip-row" style={{ margin: "10px 0" }}>
-              {[
-                "Make the headline shorter",
-                "Delete the form on this page",
-                "Add a Book Now button under the hero",
-                "Upgrade the look to feel more premium",
-                "Add a Partners page",
-                "What can you change on this site?",
-              ].map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className="chip"
-                  disabled={!!designOptions}
-                  onClick={() => setPrompt(s)}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
 
             {assistantNote ? (
-              <div className="banner" style={{ marginBottom: 12, fontSize: 13 }}>
+              <div className="banner" style={{ margin: "12px 0", fontSize: 13 }}>
                 {assistantNote}
               </div>
             ) : null}
 
+            {(project.workLog?.length || 0) > 0 ? (
+              <details style={{ marginTop: 12 }}>
+                <summary className="muted" style={{ cursor: "pointer", fontSize: 13 }}>
+                  Work log ({project.workLog!.length}) — AI continuity
+                </summary>
+                <div style={{ display: "grid", gap: 8, maxHeight: 180, overflow: "auto", marginTop: 8 }}>
+                  {project.workLog!
+                    .slice()
+                    .reverse()
+                    .slice(0, 10)
+                    .map((w, i) => (
+                      <div
+                        key={`w-${w.at}-${i}`}
+                        className="muted"
+                        style={{
+                          fontSize: 12,
+                          padding: "8px 10px",
+                          borderRadius: 10,
+                          border: "1px solid var(--line)",
+                          background: "var(--bg)",
+                        }}
+                      >
+                        <strong style={{ color: "var(--text)" }}>{w.summary}</strong>
+                        <div style={{ marginTop: 4, opacity: 0.85 }}>
+                          {new Date(w.at).toLocaleString()} · “{w.prompt.slice(0, 72)}
+                          {w.prompt.length > 72 ? "…" : ""}”
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </details>
+            ) : null}
+
             {designOptions && pendingPage ? (
-              <div style={{ marginBottom: 14 }}>
+              <div style={{ marginBottom: 14, marginTop: 12 }}>
                 <h3 style={{ marginBottom: 8 }}>
                   Pick a design for “{pendingPage.label}”
                 </h3>
@@ -509,18 +865,9 @@ export default function StudioPage() {
                   Cancel design pick
                 </button>
               </div>
-            ) : (
-              <button
-                type="button"
-                className="btn btn-primary btn-block"
-                disabled={busy || !project.site || !prompt.trim()}
-                onClick={() => applyChange()}
-              >
-                {busy ? "Thinking…" : "Send prompt"}
-              </button>
-            )}
+            ) : null}
 
-            <h3 style={{ marginTop: 16 }}>Theme accent (re-render on regenerate)</h3>
+            <h3 style={{ marginTop: 16 }}>Theme accent</h3>
             <div className="chip-row">
               {THEME_PRESETS.map((t) => (
                 <button
@@ -537,17 +884,6 @@ export default function StudioPage() {
                 </button>
               ))}
             </div>
-
-            <h3 style={{ marginTop: 16 }}>Change history</h3>
-            {history.length === 0 ? (
-              <div className="muted">No AI edits yet.</div>
-            ) : (
-              history.map((h) => (
-                <div key={h} className="muted" style={{ marginBottom: 6 }}>
-                  {h}
-                </div>
-              ))
-            )}
 
             {project.artifacts && (
               <>

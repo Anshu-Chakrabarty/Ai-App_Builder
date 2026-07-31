@@ -14,9 +14,10 @@ import {
   customPageFallback,
   generatePageCopy,
 } from "@/lib/generate-page-copy";
-import { parseAddPageRequests } from "@/lib/page-request";
+import { parseAddPageRequests, resolvePageToDelete } from "@/lib/page-request";
 import { pickSiteTemplate } from "@/lib/appbuilder/pick-template";
 import { isInlinePageEdit } from "@/lib/site-widgets";
+import { inferMediaDomain, resolveMediaTheme, isBrokenMediaUrl, ensureGalleryUrls } from "@/lib/site-media";
 import type { PageDef } from "@/lib/types";
 import {
   analyzeTemplate,
@@ -29,6 +30,9 @@ import {
   type TemplateKnowledge,
   type TemplateManifest,
 } from "@/lib/template-ai";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
 type PendingPage = { label: string; key: string };
 
@@ -47,17 +51,76 @@ function pageExists(pages: PageDef[], key: string, label: string): boolean {
   return pages.some((p) => p.key === key || p.label.toLowerCase() === lc);
 }
 
+function mediaForIdea(
+  template: ReturnType<typeof pickSiteTemplate>,
+  ideaHint: string,
+  existing?: SiteConfig["media"]
+): SiteConfig["media"] {
+  const want = inferMediaDomain(ideaHint, template.category, template.id);
+  const have = existing?.category;
+  const hasDead =
+    !!existing &&
+    (isBrokenMediaUrl(existing.hero) ||
+      isBrokenMediaUrl(existing.split) ||
+      isBrokenMediaUrl(existing.banner) ||
+      (existing.gallery || []).some((u) => isBrokenMediaUrl(u)));
+  const mismatch =
+    want !== "default" &&
+    have &&
+    have !== want &&
+    !(want === "food" && have === "ecommerce") &&
+    !(want === "ecommerce" && have === "food");
+  if (existing && !mismatch && !hasDead) return existing;
+  if (existing && hasDead && !mismatch) {
+    const category = existing.category || want;
+    const gallery = ensureGalleryUrls(existing.gallery, category, 6);
+    return {
+      hero: isBrokenMediaUrl(existing.hero) ? gallery[0] : existing.hero,
+      gallery,
+      category,
+      split: isBrokenMediaUrl(existing.split) ? gallery[1] : existing.split || gallery[1],
+      banner: isBrokenMediaUrl(existing.banner) ? gallery[2] : existing.banner || gallery[2],
+    };
+  }
+  const fresh = resolveMediaTheme(
+    template.category,
+    template.id,
+    template.previewImage,
+    ideaHint
+  );
+  return {
+    hero: fresh.hero,
+    gallery: [...fresh.gallery],
+    category: fresh.category,
+    split: fresh.split,
+    banner: fresh.banner,
+  };
+}
+
 function ensureAiReady(args: {
   template: ReturnType<typeof pickSiteTemplate>;
   copy: Record<string, any>;
   pages: PageDef[];
   brandName: string;
   accent: string;
+  idea?: string;
   manifest?: TemplateManifest;
   config?: SiteConfig;
   knowledge?: TemplateKnowledge;
+  /** Force re-resolve stock media from idea (heal wrong-domain galleries) */
+  refreshMedia?: boolean;
 }) {
-  if (args.manifest && args.config && args.knowledge) {
+  const ideaHint = [args.idea, args.brandName].filter(Boolean).join(" ");
+  const pageKeysMatch =
+    !!args.config &&
+    args.pages.length === args.config.pages.length &&
+    args.pages.every((p) => args.config!.pages.some((c) => c.key === p.key));
+
+  // Reuse live package only when the page set is unchanged (and not a forced media/section refresh)
+  if (args.manifest && args.config && args.knowledge && pageKeysMatch && !args.refreshMedia) {
+    const media = args.refreshMedia
+      ? mediaForIdea(args.template, ideaHint, undefined)
+      : mediaForIdea(args.template, ideaHint, args.config.media);
     return {
       manifest: args.manifest,
       config: {
@@ -66,17 +129,49 @@ function ensureAiReady(args: {
         pages: args.pages,
         brandName: args.brandName,
         accent: args.accent,
+        media,
+        layout: args.config.layout,
+        theme: args.config.theme,
+        sectionState: args.config.sectionState,
       },
       knowledge: args.knowledge,
     };
   }
-  return analyzeTemplate({
+
+  // Pages added/removed → re-analyze for fresh editable IDs, then merge customizations
+  const fresh = analyzeTemplate({
     template: args.template,
     pages: args.pages,
     content: args.copy || {},
     brandName: args.brandName,
     accent: args.accent,
+    idea: args.idea,
   });
+
+  if (args.config) {
+    const prev = args.copy || args.config.content || {};
+    fresh.config = {
+      ...fresh.config,
+      media: args.refreshMedia
+        ? mediaForIdea(args.template, ideaHint, undefined)
+        : mediaForIdea(args.template, ideaHint, args.config.media),
+      layout: args.config.layout ?? fresh.config.layout,
+      theme: { ...(fresh.config.theme || {}), ...(args.config.theme || {}) },
+      sectionState: { ...(fresh.config.sectionState || {}), ...(args.config.sectionState || {}) },
+      content: {
+        ...fresh.config.content,
+        ...prev,
+        visual: prev.visual || args.config.content?.visual || fresh.config.content?.visual,
+        __htmlBlocks: prev.__htmlBlocks || args.config.content?.__htmlBlocks,
+        __widgets: prev.__widgets || args.config.content?.__widgets,
+      },
+      pages: args.pages,
+      brandName: args.brandName,
+      accent: args.accent,
+    };
+  }
+
+  return fresh;
 }
 
 async function addCatalogPage(args: {
@@ -133,6 +228,12 @@ export async function POST(req: Request) {
       knowledge: incomingKnowledge,
       boundPages: incomingBoundPages,
       assets: incomingAssets,
+      history: incomingHistory,
+      workLog: incomingWorkLog,
+      target: incomingTarget,
+      images: incomingImages,
+      restoreSnapshot,
+      rerenderOnly,
     } = body as {
       idea: string;
       siteTemplateId: string;
@@ -150,9 +251,23 @@ export async function POST(req: Request) {
       knowledge?: TemplateKnowledge;
       boundPages?: Record<string, string>;
       assets?: Record<string, string>;
+      history?: { role: "user" | "assistant"; text: string }[];
+      workLog?: { at: number; prompt: string; summary: string; ops?: string[] }[];
+      target?: { id: string; kind?: string; label?: string } | null;
+      images?: string[];
+      /** Re-render from a stored config snapshot (Undo) without running the agent */
+      restoreSnapshot?: boolean;
+      /** Re-render current config/HTML without AI (heal broken previews) */
+      rerenderOnly?: boolean;
     };
 
-    if (!instruction?.trim() && !selectedDesignId) {
+    if (
+      !instruction?.trim() &&
+      !selectedDesignId &&
+      !(incomingImages && incomingImages.length) &&
+      !restoreSnapshot &&
+      !rerenderOnly
+    ) {
       return NextResponse.json({ error: "Describe the change." }, { status: 400 });
     }
 
@@ -178,6 +293,65 @@ export async function POST(req: Request) {
         assets,
       });
 
+    // ——— Undo / restore previous config snapshot ———
+    if (restoreSnapshot || rerenderOnly) {
+      if (!incomingConfig && !rerenderOnly) {
+        return NextResponse.json(
+          { error: "Nothing to restore — snapshot is missing config. Try Regenerate Site." },
+          { status: 400 }
+        );
+      }
+      const baseConfig: SiteConfig = incomingConfig || {
+        brandName: brand,
+        accent: color,
+        pages: currentPages,
+        content: nextCopy,
+        updatedAt: Date.now(),
+      };
+      const restored: SiteConfig = {
+        ...baseConfig,
+        brandName: brand,
+        accent: color,
+        pages: currentPages.length ? currentPages : baseConfig.pages,
+        content:
+          nextCopy && Object.keys(nextCopy).length
+            ? { ...baseConfig.content, ...nextCopy }
+            : baseConfig.content,
+        updatedAt: Date.now(),
+      };
+      const ready = ensureAiReady({
+        template,
+        copy: restored.content,
+        pages: restored.pages,
+        brandName: brand,
+        accent: color,
+        idea: idea || "",
+        manifest: incomingManifest,
+        config: restored,
+        knowledge: incomingKnowledge,
+        refreshMedia: !!rerenderOnly,
+      });
+      return NextResponse.json({
+        status: restoreSnapshot ? "restored" : "rerendered",
+        assistantMessage: restoreSnapshot
+          ? "Restored previous design."
+          : "Rebuilt the preview from your site config.",
+        copy: configToCopy(ready.config),
+        pages: ready.config.pages,
+        html: renderNow(ready.manifest, ready.config, ready.knowledge),
+        manifest: ready.manifest,
+        config: ready.config,
+        knowledge: ready.knowledge,
+        boundPages,
+        assets,
+        workEntry: {
+          at: Date.now(),
+          prompt: restoreSnapshot ? "undo" : "rerender",
+          summary: restoreSnapshot ? "Restored previous design" : "Rebuilt preview",
+          ops: [restoreSnapshot ? "undo" : "rerender"],
+        },
+      });
+    }
     const details = {
       brandName: brand,
       prompt: idea + (instruction ? `\n\nModification request: ${instruction}` : ""),
@@ -204,7 +378,7 @@ export async function POST(req: Request) {
         return NextResponse.json({
           status: "exists",
           assistantMessage: `You already have a “${pendingPage.label}” page.`,
-          copy: ready.config.content,
+          copy: configToCopy(ready.config),
           pages: currentPages,
           html: renderNow(ready.manifest, ready.config, ready.knowledge),
           manifest: ready.manifest,
@@ -268,6 +442,9 @@ export async function POST(req: Request) {
         pages: currentPages,
         brandName: brand,
         accent: color,
+        manifest: incomingManifest,
+        config: incomingConfig,
+        knowledge: incomingKnowledge,
       });
 
       const queue = Array.isArray(pendingQueue) ? [...pendingQueue] : [];
@@ -280,7 +457,7 @@ export async function POST(req: Request) {
           options: optionsForMissingPage(),
           pendingPage: nextPending,
           pendingQueue: queue,
-          copy: ready.config.content,
+          copy: configToCopy(ready.config),
           pages: currentPages,
           html: renderNow(ready.manifest, ready.config, ready.knowledge),
           manifest: ready.manifest,
@@ -293,7 +470,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         status: "added",
         assistantMessage: `Added “${pendingPage.label}” via selected design. Config updated; template code unchanged.`,
-        copy: ready.config.content,
+        copy: configToCopy(ready.config),
         pages: currentPages,
         html: renderNow(ready.manifest, ready.config, ready.knowledge),
         manifest: ready.manifest,
@@ -304,6 +481,86 @@ export async function POST(req: Request) {
     }
 
     const msg = String(instruction || "").trim();
+
+    // ——— Explicit page deletion (before add-page heuristics) ———
+    {
+      let delTarget = resolvePageToDelete(msg, currentPages);
+      if (
+        !delTarget &&
+        /\b(delete|remove|drop)\b/i.test(msg) &&
+        /\b(this|current)\s+page\b/i.test(msg) &&
+        pageKey &&
+        pageKey !== "home"
+      ) {
+        const p = currentPages.find((x) => x.key === pageKey);
+        if (p) delTarget = { key: p.key, label: p.label };
+      }
+      if (delTarget && delTarget.key !== "home") {
+        currentPages = currentPages.filter((p) => p.key !== delTarget!.key);
+        nextCopy = { ...nextCopy };
+        delete nextCopy[delTarget.key];
+        const ready = ensureAiReady({
+          template,
+          copy: nextCopy,
+          pages: currentPages,
+          brandName: brand,
+          accent: color,
+          manifest: incomingManifest,
+          config: incomingConfig
+            ? {
+                ...incomingConfig,
+                content: nextCopy,
+                pages: currentPages,
+                brandName: brand,
+                accent: color,
+                customPages: Object.fromEntries(
+                  Object.entries(incomingConfig.customPages || {}).filter(
+                    ([k]) => k !== delTarget!.key
+                  )
+                ),
+              }
+            : undefined,
+          knowledge: incomingKnowledge,
+        });
+        // Drop deleted page from bound HTML if present
+        let nextBound = boundPages ? { ...boundPages } : undefined;
+        if (nextBound) {
+          const oldSlug =
+            (incomingConfig?.pages || pages || []).find((p: PageDef) => p.key === delTarget!.key)
+              ?.slug || `${delTarget.key}.html`;
+          delete nextBound[oldSlug];
+          delete nextBound[`${delTarget.key}.html`];
+        }
+        const html = renderSiteFromConfig({
+          template,
+          manifest: ready.manifest,
+          config: ready.config,
+          knowledge: ready.knowledge,
+          boundPages: nextBound,
+          assets,
+        });
+        return NextResponse.json({
+          status: "updated",
+          assistantMessage: `Removed the “${delTarget.label}” page.`,
+          copy: configToCopy(ready.config),
+          pages: ready.config.pages,
+          html,
+          manifest: ready.manifest,
+          config: ready.config,
+          knowledge: ready.knowledge,
+          boundPages: nextBound,
+          assets,
+          updates: [{ type: "page", id: delTarget.key, op: "remove_page" }],
+          newPageKey: "home",
+          workEntry: {
+            at: Date.now(),
+            prompt: msg,
+            summary: `Deleted page “${delTarget.label}”`,
+            ops: [`remove_page:${delTarget.key}`],
+          },
+        });
+      }
+    }
 
     // ——— Catalog add-page shortcuts (still AI-ready after) ———
     const addRequests = !isInlinePageEdit(msg) ? parseAddPageRequests(msg) : null;
@@ -353,6 +610,9 @@ export async function POST(req: Request) {
           pages: currentPages,
           brandName: brand,
           accent: color,
+          manifest: incomingManifest,
+          config: incomingConfig,
+          knowledge: incomingKnowledge,
         });
         return NextResponse.json({
           status: "need_design",
@@ -360,7 +620,7 @@ export async function POST(req: Request) {
           options: optionsForMissingPage(),
           pendingPage: first,
           pendingQueue: rest,
-          copy: ready.config.content,
+          copy: configToCopy(ready.config),
           pages: currentPages,
           html: renderNow(ready.manifest, ready.config, ready.knowledge),
           manifest: ready.manifest,
@@ -376,13 +636,16 @@ export async function POST(req: Request) {
         pages: currentPages,
         brandName: brand,
         accent: color,
+        manifest: incomingManifest,
+        config: incomingConfig,
+        knowledge: incomingKnowledge,
       });
 
       if (!addedLabels.length) {
         return NextResponse.json({
           status: "exists",
           assistantMessage: `${alreadyHave.map((l) => `“${l}”`).join(", ")} already on your site.`,
-          copy: ready.config.content,
+          copy: configToCopy(ready.config),
           pages: currentPages,
           html: renderNow(ready.manifest, ready.config, ready.knowledge),
           manifest: ready.manifest,
@@ -394,7 +657,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         status: "added",
         assistantMessage: `Added ${addedLabels.map((l) => `“${l}”`).join(", ")} (config + manifest updated).`,
-        copy: ready.config.content,
+        copy: configToCopy(ready.config),
         pages: currentPages,
         html: renderNow(ready.manifest, ready.config, ready.knowledge),
         manifest: ready.manifest,
@@ -411,6 +674,7 @@ export async function POST(req: Request) {
       pages: currentPages,
       brandName: brand,
       accent: color,
+      idea: idea || "",
       manifest: incomingManifest,
       config: incomingConfig
         ? { ...incomingConfig, content: nextCopy, pages: currentPages, brandName: brand, accent: color }
@@ -437,6 +701,10 @@ export async function POST(req: Request) {
       knowledge,
       activePageKey: pageKey || "home",
       idea,
+      history: incomingHistory,
+      workLog: incomingWorkLog,
+      target: incomingTarget,
+      images: Array.isArray(incomingImages) ? incomingImages.slice(0, 4) : undefined,
     });
 
     if (agent.mode === "answer") {
@@ -449,6 +717,12 @@ export async function POST(req: Request) {
         assets,
         assistantMessage: agent.assistantMessage,
         newPageKey: pageKey,
+        workEntry: {
+          at: Date.now(),
+          prompt: msg,
+          summary: agent.assistantMessage.slice(0, 160),
+          ops: ["answer"],
+        },
       });
     }
 
@@ -457,8 +731,11 @@ export async function POST(req: Request) {
       nextConfig = materializeNewPages(nextConfig, knowledge, agent.newPages);
     }
 
-    // Re-analyze editable IDs when pages were added so future prompts see new fields
-    if (agent.newPages?.length || (agent.updates || []).some((u) => u.op === "add_page")) {
+    // Re-analyze editable IDs when pages were added/removed
+    const pageOps = (agent.updates || []).some(
+      (u) => u.op === "add_page" || u.op === "remove_page"
+    );
+    if (agent.newPages?.length || pageOps) {
       const refreshed = analyzeTemplate({
         template,
         pages: nextConfig.pages,
@@ -468,10 +745,39 @@ export async function POST(req: Request) {
       });
       manifest = refreshed.manifest;
       knowledge = refreshed.knowledge;
-      nextConfig = { ...nextConfig, pages: refreshed.config.pages };
+      nextConfig = {
+        ...nextConfig,
+        pages: nextConfig.pages,
+        media: nextConfig.media || refreshed.config.media,
+      };
     }
 
-    const html = renderNow(manifest, nextConfig, knowledge);
+    // Prune bound pages for removals
+    let nextBoundPages = boundPages;
+    const removed = (agent.updates || []).filter((u) => u.op === "remove_page");
+    if (nextBoundPages && removed.length) {
+      nextBoundPages = { ...nextBoundPages };
+      for (const u of removed) {
+        const key = String(u.id || "").replace(/^page\./, "");
+        delete nextBoundPages[`${key}.html`];
+        const slug = config.pages.find((p) => p.key === key)?.slug;
+        if (slug) delete nextBoundPages[slug];
+      }
+    }
+
+    const html = renderSiteFromConfig({
+      template,
+      manifest,
+      config: nextConfig,
+      knowledge,
+      boundPages: nextBoundPages,
+      assets,
+    });
+
+    const ops = [
+      ...(agent.updates || []).map((u) => `${u.op || "set"}:${u.id}`),
+      ...(agent.newPages || []).map((p) => `add_page:${p.key}`),
+    ];
 
     return NextResponse.json({
       status: "updated",
@@ -481,14 +787,22 @@ export async function POST(req: Request) {
       manifest,
       config: nextConfig,
       knowledge,
-      boundPages,
+      boundPages: nextBoundPages,
       assets,
       assistantMessage: agent.assistantMessage,
       updates: agent.updates,
       newPageKey:
-        agent.newPages?.[0]?.key ||
-        pageKey ||
-        nextConfig.pages[0]?.key,
+        removed.length
+          ? "home"
+          : agent.newPages?.[0]?.key ||
+            pageKey ||
+            nextConfig.pages[0]?.key,
+      workEntry: {
+        at: Date.now(),
+        prompt: msg,
+        summary: agent.assistantMessage.slice(0, 160),
+        ops,
+      },
     });
   } catch (err) {
     console.error("modify-site error", err);

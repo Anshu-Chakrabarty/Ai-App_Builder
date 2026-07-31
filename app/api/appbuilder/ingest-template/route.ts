@@ -10,6 +10,7 @@ import {
 } from "@/lib/template-ai";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 /** POST multipart: file (zip|html) OR { sample: "starter-agency" } */
 export async function POST(req: Request) {

@@ -10,6 +10,9 @@ import { FEATURE_CATALOG } from "@/lib/appbuilder/catalog";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 export async function POST(req: Request) {
   try {
     const { idea } = await req.json();
