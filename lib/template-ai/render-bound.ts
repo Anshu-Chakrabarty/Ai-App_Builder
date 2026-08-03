@@ -1,10 +1,11 @@
 // lib/template-ai/render-bound.ts — fill {{bindings}} from SiteConfig (template HTML unchanged structurally)
 import type { SiteConfig, TemplateKnowledge } from "./types";
 import { getByPath } from "./config";
+import { stylesToCSS } from "@/lib/site-styles";
 
 /**
  * Render bound HTML pages by substituting {{path}} from config.
- * Template code (structure/CSS) stays as ingested — only data changes.
+ * Template code (structure/CSS) stays as ingested — only data + AI style layer change.
  */
 export function renderBoundPages(args: {
   boundPages: Record<string, string>;
@@ -15,21 +16,19 @@ export function renderBoundPages(args: {
   const { boundPages, config, knowledge, assets } = args;
   const out: Record<string, string> = {};
   const themeCss = themeVarsCss(config, knowledge);
+  const aiStyles = stylesToCSS(config.styles, config.accent);
 
   for (const [slug, html] of Object.entries(boundPages)) {
     let rendered = substituteBindings(html, config);
     if (assets) {
       rendered = resolveAssetPlaceholders(rendered, assets);
     }
-    rendered = injectThemeVars(rendered, themeCss);
-    // Apply background override if present
-    const bg = config.media?.background || config.theme?.background;
-    if (bg) {
-      rendered = injectThemeVars(
-        rendered,
-        `body{background:${bg} !important}`
-      );
-    }
+    const bg = config.media?.background || config.theme?.background || config.styles?.tokens?.background;
+    const css =
+      themeCss +
+      (aiStyles ? `\n${aiStyles}` : "") +
+      (bg ? `\nbody{background:${bg} !important}` : "");
+    rendered = injectThemeVars(rendered, css);
     out[slug] = rendered;
   }
   return out;

@@ -63,11 +63,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     });
   }
 
-  const collapsed = ready && !open;
+  const collapsed = !ready || !open;
 
   return (
     <AppBuilderProvider>
-      <div className={`app-shell ${collapsed ? "sidebar-collapsed" : ""}`}>
+      <div
+        className={`app-shell ${collapsed ? "sidebar-collapsed" : ""} ${ready ? "sidebar-ready" : ""}`}
+      >
         <AppSidebar />
         {ready && open && isMobile ? (
           <button

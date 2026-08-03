@@ -7,6 +7,7 @@ import {
 } from "../agent-helpers";
 import { listEditableCatalog, listSectionMap } from "../config";
 import { galleryLabelsFor } from "@/lib/site-media";
+import { resolveStyleUpdates } from "@/lib/site-styles";
 import type { SiteConfig, TemplateKnowledge, TemplateManifest } from "../types";
 import type { EditPlan, EditPlanStep, IntentAction, IntentPlan } from "./types";
 
@@ -35,11 +36,62 @@ export function planEdits(args: PlanArgs): EditPlan {
   const steps: EditPlanStep[] = [];
   const allowed = new Set<string>();
   const constraints: string[] = [
-    "Never rewrite template source code — only config IDs",
+    "Never rewrite template source files — mutate config IDs + styles.* CSS channel",
     "Do not touch fields outside allowedIds unless scope is site",
+    "CSS/UI changes go through styles.* (nav hover, motion, tokens, patches, customCss)",
   ];
 
   // Fast paths → resolved updates, skip LLM editor
+  if (intent.fastPath === "style") {
+    const updates = resolveStyleUpdates(prompt, config.accent) || [];
+    updates.forEach((u) => allowed.add(u.id));
+    if (!updates.length) {
+      // Still allow LLM to craft CSS with style scope
+      [
+        "styles.nav.hoverColor",
+        "styles.nav.activeColor",
+        "styles.nav.hoverUnderline",
+        "styles.motion.duration",
+        "styles.button.hoverLift",
+        "styles.patches.nav-hover",
+        "styles.customCss",
+        "theme.primary",
+      ].forEach((id) => allowed.add(id));
+      return {
+        steps: [
+          {
+            action: "style",
+            ids: [...allowed],
+            rationale: "Apply CSS/UI/hover/motion changes via styles channel",
+          },
+        ],
+        allowedIds: [...allowed],
+        constraints: [
+          ...constraints,
+          "Style-only — do not change gallery images or copy unless explicitly asked",
+        ],
+        variants: [],
+      };
+    }
+    return {
+      steps: [
+        {
+          action: "style",
+          ids: updates.map((u) => u.id),
+          rationale: "Apply CSS/UI hover, motion, and color updates",
+        },
+      ],
+      allowedIds: [...allowed],
+      constraints: [
+        ...constraints,
+        "Style-only — do not change gallery images or unrelated copy",
+      ],
+      variants: [],
+      resolvedUpdates: updates,
+      assistantHint: `Updated site styling (${updates.map((u) => u.id).slice(0, 4).join(", ")}).`,
+    };
+  }
+
   if (intent.fastPath === "layout") {
     const updates = resolveLayoutUpdates(prompt, intent.target);
     updates.forEach((u) => allowed.add(u.id));
@@ -162,6 +214,12 @@ export function planEdits(args: PlanArgs): EditPlan {
   if (intent.actions.includes("layout")) {
     constraints.push("If layout is requested, prefer layout.* ids — do not swap images");
   }
+  if (intent.actions.includes("style")) {
+    constraints.push(
+      "CSS/UI is fully supported via styles.* — NEVER say you cannot change CSS/hover/animations"
+    );
+    constraints.push("Do not touch media.gallery when the user asked about nav/menu hover styles");
+  }
   if (intent.actions.includes("image") && !intent.actions.includes("copy")) {
     constraints.push("Image-focused request — avoid rewriting unrelated copy");
   }
@@ -260,7 +318,27 @@ function idsForAction(
     case "image":
       return [resolveImageTargetId(prompt, intent.target, imageOpts)];
     case "theme":
-      return ["theme.primary", "theme.background", "accent"];
+      return ["theme.primary", "theme.background", "accent", "styles.tokens.primary"];
+    case "style":
+      return [
+        "styles.nav.hoverColor",
+        "styles.nav.activeColor",
+        "styles.nav.hoverUnderline",
+        "styles.nav.activeUnderline",
+        "styles.nav.transition",
+        "styles.motion.duration",
+        "styles.motion.easing",
+        "styles.motion.hoverLift",
+        "styles.button.hoverLift",
+        "styles.button.hoverScale",
+        "styles.button.transition",
+        "styles.cards.hoverLift",
+        "styles.tokens.primary",
+        "styles.tokens.background",
+        "styles.patches.nav-hover",
+        "styles.customCss",
+        "theme.primary",
+      ];
     case "hide-section":
     case "show-section":
       return intent.target?.id ? [intent.target.id] : targetIds.filter((id) => !id.includes("."));
@@ -273,7 +351,8 @@ function idsForAction(
         (id) =>
           !id.startsWith("media.") &&
           !id.startsWith("layout.") &&
-          !id.startsWith("theme.")
+          !id.startsWith("theme.") &&
+          !id.startsWith("styles.")
       );
     default:
       return targetIds;
@@ -289,6 +368,8 @@ function rationaleFor(action: IntentAction, intent: IntentPlan): string {
       return `Update imagery for ${where}`;
     case "theme":
       return "Update theme/color tokens";
+    case "style":
+      return "Update CSS, hover states, transitions, and motion";
     case "page-add":
       return "Assemble a new page from component library";
     case "page-remove":

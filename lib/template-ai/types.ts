@@ -9,7 +9,9 @@ export type EditableFieldType =
   | "color"
   | "list"
   | "object"
-  | "html";
+  | "html"
+  | "css"
+  | "style";
 
 export type EditableField = {
   id: string;
@@ -90,16 +92,21 @@ export type SiteConfig = {
     featureColumns?: number;
     blocksColumns?: number;
   };
+  /**
+   * AI-editable CSS / motion / hover layer.
+   * Compiled into injected styles — never rewrites template source files.
+   */
+  styles?: import("@/lib/site-styles").SiteStyles;
   updatedAt: number;
 };
 
 export type ConfigUpdate = {
-  type: EditableFieldType | "section" | "page" | "theme" | "layout" | "delete";
+  type: EditableFieldType | "section" | "page" | "theme" | "layout" | "delete" | "css" | "style";
   id: string;
   value?: any;
   url?: string;
   /** For delete operations */
-  op?: "set" | "delete" | "hide_section" | "show_section" | "add_page" | "remove_page";
+  op?: "set" | "delete" | "hide_section" | "show_section" | "add_page" | "remove_page" | "append";
 };
 
 export type AiUpdatePayload = {

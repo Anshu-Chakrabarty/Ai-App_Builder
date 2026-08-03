@@ -30,5 +30,12 @@ export type {
   PipelineResult,
   PipelineStageStatus,
 } from "./agents/types";
+export {
+  stylesToCSS,
+  sanitizeCss,
+  isStyleIntent,
+  resolveStyleUpdates,
+} from "@/lib/site-styles";
+export type { SiteStyles } from "@/lib/site-styles";
 export { ingestZipBuffer, ingestHtmlString } from "./ingest/from-zip";
 export { makeIngestStubTemplate } from "./stub-template";

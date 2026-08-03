@@ -2,6 +2,7 @@
 import type { ConfigUpdate, SiteConfig, TemplateManifest } from "./types";
 import type { PageDef } from "@/lib/types";
 import { slugForPage } from "@/lib/page-designs";
+import { sanitizeCss, setStylePath, type SiteStyles } from "@/lib/site-styles";
 
 export function getByPath(obj: any, path: string): any {
   if (!path) return obj;
@@ -60,6 +61,7 @@ export function resolveUpdatePath(
   // Allow direct dotted paths / known aliases
   if (update.id.startsWith("theme.")) return update.id;
   if (update.id.startsWith("layout.")) return update.id;
+  if (update.id.startsWith("styles.")) return update.id;
   if (update.id === "brandName" || update.id === "accent") return update.id;
   return update.id;
 }
@@ -78,6 +80,7 @@ export function applyUpdatesToConfig(
     content: structuredClone(config.content),
     theme: { ...(config.theme || {}) },
     layout: { ...(config.layout || {}) },
+    styles: config.styles ? structuredClone(config.styles) : {},
     media: config.media
       ? {
           ...config.media,
@@ -156,6 +159,32 @@ export function applyUpdatesToConfig(
       continue;
     }
 
+    // CSS / style channel — tokens, nav hover, motion, patches, customCss
+    if (
+      u.type === "css" ||
+      u.type === "style" ||
+      u.id.startsWith("styles.") ||
+      u.id === "customCss"
+    ) {
+      const styles = { ...(next.styles || {}) } as SiteStyles;
+      const id = u.id === "customCss" ? "styles.customCss" : u.id;
+      if (op === "delete") {
+        next.styles = setStylePath(styles, id, null);
+      } else if (op === "append" && (id.endsWith("customCss") || id === "styles.customCss")) {
+        const prev = styles.customCss || "";
+        next.styles = setStylePath(
+          styles,
+          "styles.customCss",
+          sanitizeCss(`${prev}\n${String(value ?? "")}`)
+        );
+      } else if (value && typeof value === "object" && !Array.isArray(value) && id === "styles") {
+        next.styles = { ...styles, ...(value as SiteStyles) };
+      } else {
+        next.styles = setStylePath(styles, id, value);
+      }
+      continue;
+    }
+
     const path = resolveUpdatePath(u, manifest);
 
     // Imagery / background live in config.media, not content
@@ -204,6 +233,7 @@ export function configToCopy(config: SiteConfig): Record<string, any> {
       theme: config.theme,
       media: config.media,
       layout: config.layout,
+      styles: config.styles,
       sectionState: config.sectionState,
     },
   };

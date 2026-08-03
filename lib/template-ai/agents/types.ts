@@ -8,6 +8,7 @@ export type IntentAction =
   | "image"
   | "layout"
   | "theme"
+  | "style"
   | "page-add"
   | "page-remove"
   | "hide-section"
@@ -28,8 +29,8 @@ export type IntentPlan = {
   summary: string;
   /** Notes for downstream agents */
   notes: string[];
-  /** True when layout/gallery/image can skip the LLM editor */
-  fastPath?: "layout" | "gallery-card" | "image-upload" | null;
+  /** True when layout/gallery/image/style can skip the LLM editor */
+  fastPath?: "layout" | "gallery-card" | "image-upload" | "style" | null;
 };
 
 export type EditPlanStep = {

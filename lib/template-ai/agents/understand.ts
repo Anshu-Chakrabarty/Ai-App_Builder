@@ -10,6 +10,7 @@ import {
   type AgentWorkEntry,
 } from "../agent-helpers";
 import { galleryLabelsFor } from "@/lib/site-media";
+import { isStyleIntent } from "@/lib/site-styles";
 import type { SiteConfig } from "../types";
 import type { ContinuityMode, IntentAction, IntentKind, IntentPlan, IntentScope } from "./types";
 
@@ -46,12 +47,18 @@ export function understandIntent(args: UnderstandArgs): IntentPlan {
   }
 
   const galleryLabels = galleryLabelsFor(config.media?.category || "default");
-  const namedGalleryIdx = resolveGalleryCardIndex(msg, galleryLabels, target);
+  const styleIntent = isStyleIntent(msg);
+  // Don't treat "nav menu hover" as the food "Menu" gallery card
+  const namedGalleryIdx =
+    styleIntent && /\b(nav|navigation|hover|active|transition|animation|css|style)\b/i.test(msg)
+      ? null
+      : resolveGalleryCardIndex(msg, galleryLabels, target);
   const layoutOnly =
     isLayoutIntent(msg) &&
-    !/\b(replace|upload|swap)\s+(the\s+)?(image|photo|picture)\b/i.test(msg);
+    !/\b(replace|upload|swap)\s+(the\s+)?(image|photo|picture)\b/i.test(msg) &&
+    !styleIntent;
 
-  const actions = detectActions(msg, images, layoutOnly, namedGalleryIdx);
+  const actions = detectActions(msg, images, layoutOnly, namedGalleryIdx, styleIntent);
   const kind = detectKind(msg, actions, images);
   const scope = detectScope(msg, target, actions);
   const fastPath = detectFastPath({
@@ -60,6 +67,7 @@ export function understandIntent(args: UnderstandArgs): IntentPlan {
     images,
     prompt: msg,
     actions,
+    styleIntent,
   });
 
   const notes: string[] = [];
@@ -68,6 +76,9 @@ export function understandIntent(args: UnderstandArgs): IntentPlan {
   }
   if (continuity === "new-topic") {
     notes.push("New topic — do not reuse prior sticky target");
+  }
+  if (styleIntent) {
+    notes.push("CSS/UI style request — use styles.* / theme.* (hover, motion, colors)");
   }
   if (namedGalleryIdx != null) {
     notes.push(`Gallery card index ${namedGalleryIdx} (“${galleryLabels[namedGalleryIdx]}”)`);
@@ -96,19 +107,32 @@ function detectActions(
   msg: string,
   images: string[] | undefined,
   layoutOnly: boolean,
-  namedGalleryIdx: number | null
+  namedGalleryIdx: number | null,
+  styleIntent: boolean
 ): IntentAction[] {
   const actions: IntentAction[] = [];
   const lower = msg.toLowerCase();
 
-  if (layoutOnly) actions.push("layout");
-  if (images?.length || /\b(image|photo|picture|hero|gallery|banner|upload|swap)\b/i.test(msg)) {
-    if (!layoutOnly) actions.push("image");
+  if (styleIntent) {
+    actions.push("style");
+    if (/\b(color|accent|theme|palette|background)\b/i.test(msg)) actions.push("theme");
   }
-  if (namedGalleryIdx != null && !layoutOnly) {
+
+  if (layoutOnly) actions.push("layout");
+  // Style-only requests should not also pull in image/copy unless clearly asked
+  const imageAsked =
+    images?.length ||
+    (/\b(image|photo|picture|hero|gallery|banner|upload|swap)\b/i.test(msg) &&
+      !/\b(nav|navigation|hover|transition|animation|css)\b/i.test(msg));
+  if (imageAsked && !layoutOnly && !styleIntent) {
+    actions.push("image");
+  }
+  if (namedGalleryIdx != null && !layoutOnly && !styleIntent) {
     if (!actions.includes("image")) actions.push("image");
   }
-  if (/\b(color|accent|theme|background|palette)\b/i.test(msg)) actions.push("theme");
+  if (!styleIntent && /\b(color|accent|theme|background|palette)\b/i.test(msg)) {
+    actions.push("theme");
+  }
   if (/\b(add|create|new)\b.*\bpage\b|\bpage\b.*\b(add|create|new)\b/i.test(msg)) {
     actions.push("page-add");
   }
@@ -122,10 +146,11 @@ function detectActions(
     actions.push("show-section");
   }
   if (
-    /\b(change|update|rewrite|make|set|edit|fix|tweak|shorter|longer|warmer|bolder)\b/i.test(
+    !styleIntent &&
+    (/\b(change|update|rewrite|make|set|edit|fix|tweak|shorter|longer|warmer|bolder)\b/i.test(
       msg
     ) ||
-    /\b(title|heading|subtitle|copy|text|cta|button)\b/i.test(msg)
+      /\b(title|heading|subtitle|copy|text)\b/i.test(msg))
   ) {
     if (!actions.includes("copy") && !layoutOnly) actions.push("copy");
   }
@@ -135,8 +160,10 @@ function detectActions(
     !/\b(add|delete|remove|change|update|make|create|upgrade)\b/i.test(lower);
   if (isQuestion && !actions.length) actions.push("question");
 
-  if (!actions.length && msg) actions.push("copy");
-  if (images?.length && !actions.includes("image") && !layoutOnly) actions.push("image");
+  if (!actions.length && msg) actions.push(styleIntent ? "style" : "copy");
+  if (images?.length && !actions.includes("image") && !layoutOnly && !styleIntent) {
+    actions.push("image");
+  }
 
   return actions;
 }
@@ -158,6 +185,7 @@ function detectScope(
   actions: IntentAction[]
 ): IntentScope {
   if (actions.includes("page-add") || actions.includes("page-remove")) return "page";
+  if (actions.includes("style") || actions.includes("theme")) return "site";
   if (/\b(whole|entire|all)\s+(site|pages?)\b|\beverywhere\b/i.test(msg)) return "site";
   if (target?.kind === "section" || /\b(this\s+)?section\b/i.test(msg)) return "section";
   if (target?.kind === "field" || target?.kind === "image") return "field";
@@ -171,12 +199,15 @@ function detectFastPath(opts: {
   images?: string[];
   prompt: string;
   actions: IntentAction[];
+  styleIntent: boolean;
 }): IntentPlan["fastPath"] {
+  if (opts.styleIntent && opts.actions.includes("style")) return "style";
   if (opts.layoutOnly) return "layout";
   if (
     opts.namedGalleryIdx != null &&
     /\b(image|photo|picture|card|replace|change|swap|update|use)\b/i.test(opts.prompt) &&
-    !opts.actions.includes("layout")
+    !opts.actions.includes("layout") &&
+    !opts.styleIntent
   ) {
     return "gallery-card";
   }
@@ -186,7 +217,8 @@ function detectFastPath(opts: {
       /replace|upload|use|set|change|image|photo|picture|hero|background|split|gallery|banner|card/i.test(
         opts.prompt
       )) &&
-    !opts.actions.includes("layout")
+    !opts.actions.includes("layout") &&
+    !opts.styleIntent
   ) {
     return "image-upload";
   }

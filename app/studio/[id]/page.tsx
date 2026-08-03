@@ -746,15 +746,15 @@ export default function StudioPage() {
                 </p>
               </div>
             ) : null}
-            <div className="preview-frame" style={{ minHeight: 560, padding: 0, position: "relative" }}>
+            <div className="preview-frame studio-preview" style={{ padding: 0, position: "relative" }}>
               <iframe
                 key={previewKey}
                 title="Site preview"
                 srcDoc={html}
-                style={{ width: "100%", height: 560, border: "none", background: "#fff" }}
+                className="studio-preview-iframe"
               />
               <div
-                className="muted"
+                className="muted studio-preview-hint"
                 style={{
                   position: "absolute",
                   left: 10,
@@ -765,6 +765,7 @@ export default function StudioPage() {
                   borderRadius: 8,
                   padding: "5px 8px",
                   pointerEvents: "none",
+                  maxWidth: "calc(100% - 20px)",
                 }}
               >
                 Click a section to select it · Alt+click for a field/image · links still work

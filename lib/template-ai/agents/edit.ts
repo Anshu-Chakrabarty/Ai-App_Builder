@@ -14,6 +14,7 @@ import {
 } from "../agent-helpers";
 import { galleryLabelsFor } from "@/lib/site-media";
 import { resolvePageToDelete } from "@/lib/page-request";
+import { resolveStyleUpdates } from "@/lib/site-styles";
 import type {
   AiUpdatePayload,
   ConfigUpdate,
@@ -168,7 +169,8 @@ async function editWithGemini(args: EditArgs): Promise<AiUpdatePayload> {
   const result = await generateContentResilient(ai, {
     contents:
       `You are the Code Editing Agent for brand "${config.brandName}".\n` +
-      `You implement an EditPlan. NEVER change template code. Only emit JSON updates by editable ID.\n` +
+      `You implement an EditPlan. Do NOT rewrite template source files.\n` +
+      `You MAY change content IDs AND the styles.* CSS channel (colors, hover, transitions, animations).\n` +
       `Active page: ${activePageKey}. Accent: ${config.accent}.\n` +
       `Idea: ${(idea || "").slice(0, 800)}\n\n` +
       intentBlock +
@@ -181,18 +183,32 @@ async function editWithGemini(args: EditArgs): Promise<AiUpdatePayload> {
       `SITE SECTION MAP:\n${sectionMap}\n\n` +
       `GALLERY CARD MAP:\n${galleryCardMap}\n\n` +
       `Scoped editable IDs:\n${catalog}\n\n` +
+      `CSS / UI STYLE CHANNEL (use these for hover, transitions, animations, colors):\n` +
+      `- styles.nav.hoverColor / styles.nav.activeColor / styles.nav.hoverUnderline / styles.nav.activeUnderline\n` +
+      `- styles.nav.transition / styles.motion.duration / styles.motion.easing / styles.motion.hoverLift\n` +
+      `- styles.button.hoverLift / styles.button.hoverScale / styles.button.transition\n` +
+      `- styles.cards.hoverLift / styles.tokens.primary / styles.tokens.background\n` +
+      `- styles.patches.<name> = a CSS block (e.g. nav hover rules)\n` +
+      `- styles.customCss = freeform CSS (sanitized)\n` +
+      `- theme.primary / theme.background / accent\n\n` +
+      `Current styles config: ${JSON.stringify(config.styles || {}).slice(0, 2000)}\n\n` +
       `Components for NEW pages:\n${components}\n\n` +
       (variants ? `Variants:\n${variants}\n\n` : "") +
       `config.content (truncated):\n${contentPreview}\n` +
       `layout: ${layoutPreview}\n\n` +
       `User prompt:\n${prompt}\n\n` +
       `Return ONLY JSON:\n` +
-      `{"mode":"answer"|"mutate","assistantMessage":"...","updates":[{"type":"...","id":"...","value":"...","op":"set|delete|hide_section|show_section|add_page|remove_page"}],"newPages":[{"key":"...","label":"...","components":[],"content":{}}]}\n` +
+      `{"mode":"answer"|"mutate","assistantMessage":"...","updates":[{"type":"text|image|theme|layout|style|css|...","id":"...","value":"...","op":"set|delete|append|hide_section|show_section|add_page|remove_page"}],"newPages":[{"key":"...","label":"...","components":[],"content":{}}]}\n` +
       `Rules:\n` +
       `- Stay inside the Edit Plan allowed IDs when possible.\n` +
+      `- NEVER say you cannot change CSS/JS hover/active states — use styles.* instead.\n` +
+      `- Nav/menu hover ≠ gallery “Menu” card. Style requests must NOT update media.gallery.*\n` +
+      `- For hover/active/underline/transition/animation → styles.nav.* and/or styles.patches.nav-hover with real CSS.\n` +
+      `- For button/card motion → styles.button.* / styles.cards.* / styles.motion.*.\n` +
+      `- For custom effects → styles.customCss or styles.patches.<id> with CSS only (no <script>).\n` +
       `- Questions only → mode=answer, empty updates.\n` +
       `- Layout requests → layout.* only, never media.*.\n` +
-      `- Named gallery cards → exact media.gallery.N from GALLERY CARD MAP.\n` +
+      `- Named gallery cards → exact media.gallery.N from GALLERY CARD MAP (only when user asked for that card image).\n` +
       `- Never remove page "home".\n` +
       `- Prefer many small ID updates over inventing unknown ids.\n`,
     config: {
@@ -329,6 +345,21 @@ export function heuristicEdit(args: EditArgs): AiUpdatePayload {
       assistantMessage: `Aligned into a ${detectColumnCount(prompt)}-column layout without changing images.`,
       updates: resolveLayoutUpdates(prompt, target),
     };
+  }
+
+  // CSS / hover / motion fallback
+  {
+    const styleUpdates = resolveStyleUpdates(prompt, config.accent);
+    if (styleUpdates?.length) {
+      return {
+        mode: "mutate",
+        assistantMessage: `Updated site styling (${styleUpdates
+          .map((u) => u.id)
+          .slice(0, 3)
+          .join(", ")}).`,
+        updates: styleUpdates,
+      };
+    }
   }
 
   if (target?.id && prompt.trim() && !/\b(delete|remove|hide)\b.*\b(page|section)\b/i.test(prompt)) {

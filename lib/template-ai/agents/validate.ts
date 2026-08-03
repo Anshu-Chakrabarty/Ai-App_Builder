@@ -81,13 +81,16 @@ export function validateAgainstPlan(args: ValidateArgs): ValidateResult {
       return true;
     }
 
-    // Theme / layout / media / brand always structurally valid if allowed
+    // Theme / layout / media / styles / brand always structurally valid if allowed
     if (
       u.id.startsWith("theme.") ||
       u.id.startsWith("layout.") ||
+      u.id.startsWith("styles.") ||
       u.id.startsWith("media.") ||
       u.id === "brandName" ||
-      u.id === "accent"
+      u.id === "accent" ||
+      u.type === "css" ||
+      u.type === "style"
     ) {
       if (strict && !isAllowedId(u.id, allow, true) && !relaxesForAction(u, intent)) {
         dropped.push(u);
@@ -140,6 +143,25 @@ export function validateAgainstPlan(args: ValidateArgs): ValidateResult {
     }
   }
 
+  // Style-only: never hijack gallery/images (e.g. "Menu" nav vs "Menu" card)
+  if (
+    intent.actions.includes("style") &&
+    !intent.actions.includes("image") &&
+    !intent.actions.includes("copy")
+  ) {
+    const before = updates.length;
+    updates = updates.filter((u) => {
+      if (u.type === "image" || u.id.startsWith("media.")) {
+        dropped.push(u);
+        return false;
+      }
+      return true;
+    });
+    if (updates.length < before) {
+      warnings.push("Stripped image changes from style/CSS request");
+    }
+  }
+
   // Image-only: prefer not rewriting lots of copy unless plan includes copy
   if (
     intent.actions.includes("image") &&
@@ -148,7 +170,8 @@ export function validateAgainstPlan(args: ValidateArgs): ValidateResult {
   ) {
     const before = updates.length;
     updates = updates.filter((u) => {
-      if (u.type === "image" || u.id.startsWith("media.") || u.id.startsWith("layout.")) return true;
+      if (u.type === "image" || u.id.startsWith("media.") || u.id.startsWith("layout.") || u.id.startsWith("styles."))
+        return true;
       if (u.op === "hide_section" || u.op === "show_section") return true;
       dropped.push(u);
       return false;
@@ -217,17 +240,32 @@ function buildAllowlist(
     }
     if (sectionIds.has(intent.target.id)) allow.add(intent.target.id);
   }
-  // Always allow layout/theme when those actions present
+  // Always allow layout/theme/styles when those actions present
   if (intent.actions.includes("layout")) {
     allow.add("layout.galleryColumns");
     allow.add("layout.galleryVariant");
     allow.add("layout.featureColumns");
     allow.add("layout.blocksColumns");
   }
-  if (intent.actions.includes("theme")) {
+  if (intent.actions.includes("theme") || intent.actions.includes("style")) {
     allow.add("theme.primary");
     allow.add("theme.background");
     allow.add("accent");
+    allow.add("styles.customCss");
+    allow.add("styles.nav.hoverColor");
+    allow.add("styles.nav.activeColor");
+    allow.add("styles.nav.hoverUnderline");
+    allow.add("styles.nav.activeUnderline");
+    allow.add("styles.nav.transition");
+    allow.add("styles.motion.duration");
+    allow.add("styles.motion.easing");
+    allow.add("styles.motion.hoverLift");
+    allow.add("styles.button.hoverLift");
+    allow.add("styles.button.hoverScale");
+    allow.add("styles.cards.hoverLift");
+    allow.add("styles.tokens.primary");
+    allow.add("styles.tokens.background");
+    allow.add("styles.patches.nav-hover");
   }
   return allow;
 }
@@ -254,6 +292,16 @@ function isAllowedId(id: string, allow: Set<string>, strict: boolean): boolean {
 function relaxesForAction(u: ConfigUpdate, intent: IntentPlan): boolean {
   if (intent.actions.includes("layout") && u.id.startsWith("layout.")) return true;
   if (intent.actions.includes("theme") && (u.id.startsWith("theme.") || u.id === "accent")) return true;
+  if (
+    intent.actions.includes("style") &&
+    (u.id.startsWith("styles.") ||
+      u.type === "css" ||
+      u.type === "style" ||
+      u.id.startsWith("theme.") ||
+      u.id === "accent")
+  ) {
+    return true;
+  }
   if (intent.actions.includes("image") && (u.type === "image" || u.id.startsWith("media."))) return true;
   if (intent.actions.includes("page-remove") && u.op === "remove_page") return true;
   if (

@@ -22,6 +22,7 @@ import {
   isBrokenMediaUrl,
   FALLBACK_IMAGE,
 } from "./site-media";
+import { stylesToCSS, type SiteStyles } from "./site-styles";
 
 export const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 export const SANS =
@@ -40,14 +41,18 @@ function baseCSS(
     galleryVariant?: "featured" | "equal";
     featureColumns?: number;
     blocksColumns?: number;
-  } | null
+  } | null,
+  styles?: SiteStyles | null
 ): string {
   return `
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap');
     *{margin:0;padding:0;box-sizing:border-box}
+    html,body{overflow-x:hidden;max-width:100%;-webkit-text-size-adjust:100%}
     body{font-family:${font};color:#1a1a1a;line-height:1.65;-webkit-font-smoothing:antialiased;background:#fff}
     a{color:inherit;text-decoration:none}
-    .wrap{max-width:1100px;margin:0 auto;padding:0 28px}
+    .wrap{max-width:1100px;margin:0 auto;padding:0 28px;width:100%}
+    img,video,iframe,table{max-width:100%}
+    table{display:block;overflow-x:auto}
     nav{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;
         align-items:center;padding:14px 28px;background:rgba(255,255,255,.88);
         backdrop-filter:blur(14px);border-bottom:1px solid #ececec;box-shadow:0 1px 0 rgba(255,255,255,.6)}
@@ -74,6 +79,7 @@ function baseCSS(
     ${interactiveCSS(accent)}
     ${mediaCSS(accent)}
     ${layoutOverrideCSS(layout)}
+    ${stylesToCSS(styles, accent)}
     @media(max-width:720px){
       .wrap{padding:0 16px}
       section{padding:40px 0}
@@ -94,9 +100,12 @@ function baseCSS(
       footer{padding:28px 0 100px;flex-direction:column;gap:8px}
       .sticky-cta{left:12px;right:12px;bottom:12px;justify-content:stretch}
       .sticky-cta a{flex:1;justify-content:center;width:100%}
-      /* Collapse template inline multi-column grids on phones */
       [style*="grid-template-columns"]{grid-template-columns:1fr!important}
-      [style*="display:grid"][style*="gap"]{gap:16px!important}
+      [style*="display:grid"]{gap:16px!important}
+      [style*="display: flex"][style*="gap"],
+      [style*="display:flex"][style*="gap"]{flex-wrap:wrap!important}
+      [style*="min-width:"]{min-width:0!important}
+      [style*="width:"][style*="px"]{max-width:100%!important}
     }
   `;
 }
@@ -274,6 +283,8 @@ export function renderPage(
     (safeCopy as any)?.__meta?.layout ||
     (safeCopy as any)?.__meta?.theme?.layout ||
     null;
+  const siteStyles =
+    ((safeCopy as any)?.__meta?.styles as SiteStyles | undefined) || null;
 
   let body = "";
   if (page.designId?.startsWith("custom:")) {
@@ -368,7 +379,7 @@ export function renderPage(
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(brand)} — ${esc(page.label)}</title>
 <meta name="description" content="${esc(hero.subtitle)}">
-<style>${baseCSS(accent, template.font, layout)}${
+<style>${baseCSS(accent, template.font, layout, siteStyles)}${
     bgOverride ? `\nbody{background:${bgOverride} !important}` : ""
   }</style></head>
 <body>${navHTML(brand, allPages, page.slug, theme.hero)}${body}${footerHTML(brand)}</body></html>`;
