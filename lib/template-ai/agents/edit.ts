@@ -24,6 +24,7 @@ import type {
 } from "../types";
 import { scopedCatalog } from "./plan";
 import type { EditPlan, IntentPlan } from "./types";
+import type { StructuredInstruction } from "./interpreter";
 
 export type EditArgs = {
   prompt: string;
@@ -37,16 +38,20 @@ export type EditArgs = {
   history?: AgentHistoryTurn[];
   workLog?: AgentWorkEntry[];
   images?: string[];
+  /** Slim Gemini context for faster/cheaper calls */
+  compact?: boolean;
+  instruction?: StructuredInstruction;
 };
 
 /**
  * Code Editing Agent — implements the EditPlan as config JSON updates.
  * Never rewrites template source; only emits editable-ID patches.
+ * Skips Gemini whenever the interpreter/planner already resolved updates.
  */
 export async function editFromPlan(args: EditArgs): Promise<AiUpdatePayload> {
-  const { plan, intent, prompt, config, images, activePageKey, knowledge } = args;
+  const { plan, intent, prompt, config, images } = args;
 
-  // Planner already resolved surgical updates
+  // Planner / interpreter already resolved surgical updates — fastest path
   if (plan.resolvedUpdates) {
     return {
       mode: plan.resolvedUpdates.length ? "mutate" : "answer",
@@ -56,6 +61,7 @@ export async function editFromPlan(args: EditArgs): Promise<AiUpdatePayload> {
           ? `Applied planned updates (${plan.resolvedUpdates.map((u) => u.id).join(", ")}).`
           : "No config changes needed."),
       updates: plan.resolvedUpdates,
+      newPages: [],
     };
   }
 
@@ -64,7 +70,7 @@ export async function editFromPlan(args: EditArgs): Promise<AiUpdatePayload> {
     const labels = galleryLabelsFor(config.media?.category || "default");
     const idx = resolveGalleryCardIndex(prompt, labels, intent.target) ?? 0;
     const imageId = `media.gallery.${idx}`;
-    const value = pickStockImage(prompt, config.media?.category);
+    const value = images?.[0] || pickStockImage(prompt, config.media?.category);
     return {
       mode: "mutate",
       assistantMessage:
@@ -74,11 +80,26 @@ export async function editFromPlan(args: EditArgs): Promise<AiUpdatePayload> {
     };
   }
 
+  // Cheap local heuristic before paying for Gemini
+  const heuristic = heuristicEdit(args);
+  if (
+    heuristic.mode === "mutate" &&
+    heuristic.updates.length > 0 &&
+    (intent.fastPath ||
+      intent.actions.every((a) =>
+        ["style", "theme", "layout", "image", "hide-section", "show-section", "page-remove"].includes(
+          a
+        )
+      ))
+  ) {
+    return heuristic;
+  }
+
   try {
     return await editWithGemini(args);
   } catch (err) {
     console.warn("edit agent fallback", err);
-    return heuristicEdit(args);
+    return heuristic;
   }
 }
 
@@ -95,6 +116,7 @@ async function editWithGemini(args: EditArgs): Promise<AiUpdatePayload> {
     history,
     workLog,
     images,
+    instruction,
   } = args;
 
   const galleryLabels = galleryLabelsFor(config.media?.category || "default");
@@ -110,111 +132,103 @@ async function editWithGemini(args: EditArgs): Promise<AiUpdatePayload> {
     config
   );
 
+  // Compact context = faster + fewer tokens (most edits)
+  const compact = args.compact !== false;
+  const histN = compact ? 8 : 24;
+  const histChars = compact ? 280 : 600;
+  const contentLimit = compact ? 2200 : 6000;
+  const maxOut = Number(process.env.GEMINI_EDIT_MAX_TOKENS) || (compact ? 4096 : 8192);
+
   const galleryCardMap = galleryLabels
-    .map((lab, i) => `- media.gallery.${i} = “${lab}” card image`)
+    .map((lab, i) => `- media.gallery.${i} = “${lab}”`)
     .join("\n");
-  const components = knowledge.components
-    .map((c) => `${c.id}: ${c.name} — ${c.description}`)
-    .join("\n");
-  const variants =
-    plan.variants.join("\n") ||
-    (knowledge.componentVariants || [])
-      .slice(0, 12)
-      .map((v) => `${v.variantId} (${v.componentId}): ${v.name}`)
-      .join("\n");
-  const pageList = config.pages.map((p) => `- ${p.key} (“${p.label}”)`).join("\n");
+  const pageList = config.pages.map((p) => `${p.key}`).join(", ");
 
   const historyBlock = (history || [])
-    .slice(-40)
-    .map((h, idx, arr) => {
-      const recent = idx >= arr.length - 10;
-      return `${h.role.toUpperCase()}: ${h.text.slice(0, recent ? 700 : 220)}`;
-    })
+    .slice(-histN)
+    .map((h) => `${h.role === "user" ? "U" : "A"}: ${h.text.slice(0, histChars)}`)
     .join("\n");
 
   const workBlock = (workLog || [])
-    .slice(-20)
-    .map(
-      (w) =>
-        `- ${w.summary}${w.ops?.length ? ` [${w.ops.join(", ")}]` : ""} · was: “${(w.prompt || "").slice(0, 100)}”`
-    )
+    .slice(-8)
+    .map((w) => `- ${w.summary.slice(0, 80)}`)
     .join("\n");
 
-  const planBlock =
-    `EDIT PLAN (follow exactly — only these components/properties):\n` +
-    plan.steps.map((s, i) => `${i + 1}. [${s.action}] ${s.ids.join(", ") || "(new page)"} — ${s.rationale}`).join("\n") +
-    `\nAllowed IDs: ${plan.allowedIds.slice(0, 40).join(", ") || "(planner open — prefer section map)"}\n` +
-    `Constraints:\n${plan.constraints.map((c) => `- ${c}`).join("\n")}\n`;
+  const instructionBlock = instruction
+    ? `STRUCTURED INSTRUCTION:\n${JSON.stringify(
+        {
+          page: instruction.page,
+          target: instruction.target,
+          actions: instruction.actions.slice(0, 12),
+          constraints: instruction.constraints.slice(0, 8),
+        },
+        null,
+        0
+      )}\n\n`
+    : "";
 
-  const intentBlock =
-    `INTENT (from Natural Language Agent):\n` +
-    `- summary: ${intent.summary}\n` +
-    `- kind: ${intent.kind}; scope: ${intent.scope}; actions: ${intent.actions.join(", ")}\n` +
-    `- continuity: ${intent.continuity}\n` +
-    (intent.target
-      ? `- target: ${intent.target.id} (${intent.target.kind || "field"}) “${intent.target.label || ""}”\n`
-      : "") +
-    (intent.notes.length ? `- notes: ${intent.notes.join("; ")}\n` : "");
+  const planBlock =
+    `PLAN:\n` +
+    plan.steps
+      .slice(0, 8)
+      .map((s, i) => `${i + 1}. [${s.action}] ${s.ids.slice(0, 6).join(", ")} — ${s.rationale}`)
+      .join("\n") +
+    `\nAllowed: ${(plan.allowedIds.length ? plan.allowedIds : ["(section map)"]).slice(0, 28).join(", ")}\n` +
+    `Constraints:\n${plan.constraints.slice(0, 8).map((c) => `- ${c}`).join("\n")}\n`;
+
+  const targetLine = intent.target
+    ? `Target: ${intent.target.id} (${intent.target.kind || "field"}) ${intent.target.label || ""}\n`
+    : "";
 
   const imageBlock =
     images && images.length
-      ? `UPLOADED IMAGES (${images.length}): use first as image field value when changing photos.\n` +
-        `Preferred image id: ${resolveImg(prompt)}\n`
+      ? `Upload → set image id ${resolveImg(prompt)} to first uploaded URL.\n`
       : "";
 
-  const contentPreview = JSON.stringify(config.content).slice(0, 6000);
-  const layoutPreview = JSON.stringify(config.layout || {});
+  // Only include content for allowed / target paths when possible
+  let contentPreview = "";
+  if (intent.target?.id && intent.target.kind !== "image") {
+    contentPreview = JSON.stringify({
+      focus: intent.target.id,
+      content: config.content,
+    }).slice(0, contentLimit);
+  } else {
+    contentPreview = JSON.stringify(config.content).slice(0, contentLimit);
+  }
+
+  const needNewPage = intent.actions.includes("page-add");
+  const components = needNewPage
+    ? knowledge.components.map((c) => c.id).join(", ")
+    : "";
 
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
   const result = await generateContentResilient(ai, {
     contents:
-      `You are the Code Editing Agent for brand "${config.brandName}".\n` +
-      `You implement an EditPlan. Do NOT rewrite template source files.\n` +
-      `You MAY change content IDs AND the styles.* CSS channel (colors, hover, transitions, animations).\n` +
-      `Active page: ${activePageKey}. Accent: ${config.accent}.\n` +
-      `Idea: ${(idea || "").slice(0, 800)}\n\n` +
-      intentBlock +
-      `\n` +
+      `Website edit agent for "${config.brandName}". Emit JSON config updates only (no template source).\n` +
+      `Page: ${activePageKey}. Accent: ${config.accent}. ${(idea || "").slice(0, 240)}\n` +
+      targetLine +
+      `Intent: ${intent.summary} | actions=${intent.actions.join(",")}\n\n` +
+      instructionBlock +
       planBlock +
-      `\nPages:\n${pageList}\n\n` +
-      (historyBlock ? `Chat history:\n${historyBlock}\n\n` : "") +
-      (workBlock ? `Work log:\n${workBlock}\n\n` : "") +
-      (imageBlock ? `${imageBlock}\n` : "") +
-      `SITE SECTION MAP:\n${sectionMap}\n\n` +
-      `GALLERY CARD MAP:\n${galleryCardMap}\n\n` +
-      `Scoped editable IDs:\n${catalog}\n\n` +
-      `CSS / UI STYLE CHANNEL (use these for hover, transitions, animations, colors):\n` +
-      `- styles.nav.hoverColor / styles.nav.activeColor / styles.nav.hoverUnderline / styles.nav.activeUnderline\n` +
-      `- styles.nav.transition / styles.motion.duration / styles.motion.easing / styles.motion.hoverLift\n` +
-      `- styles.button.hoverLift / styles.button.hoverScale / styles.button.transition\n` +
-      `- styles.cards.hoverLift / styles.tokens.primary / styles.tokens.background\n` +
-      `- styles.patches.<name> = a CSS block (e.g. nav hover rules)\n` +
-      `- styles.customCss = freeform CSS (sanitized)\n` +
-      `- theme.primary / theme.background / accent\n\n` +
-      `Current styles config: ${JSON.stringify(config.styles || {}).slice(0, 2000)}\n\n` +
-      `Components for NEW pages:\n${components}\n\n` +
-      (variants ? `Variants:\n${variants}\n\n` : "") +
-      `config.content (truncated):\n${contentPreview}\n` +
-      `layout: ${layoutPreview}\n\n` +
-      `User prompt:\n${prompt}\n\n` +
-      `Return ONLY JSON:\n` +
-      `{"mode":"answer"|"mutate","assistantMessage":"...","updates":[{"type":"text|image|theme|layout|style|css|...","id":"...","value":"...","op":"set|delete|append|hide_section|show_section|add_page|remove_page"}],"newPages":[{"key":"...","label":"...","components":[],"content":{}}]}\n` +
-      `Rules:\n` +
-      `- Stay inside the Edit Plan allowed IDs when possible.\n` +
-      `- NEVER say you cannot change CSS/JS hover/active states — use styles.* instead.\n` +
-      `- Nav/menu hover ≠ gallery “Menu” card. Style requests must NOT update media.gallery.*\n` +
-      `- For hover/active/underline/transition/animation → styles.nav.* and/or styles.patches.nav-hover with real CSS.\n` +
-      `- For button/card motion → styles.button.* / styles.cards.* / styles.motion.*.\n` +
-      `- For custom effects → styles.customCss or styles.patches.<id> with CSS only (no <script>).\n` +
-      `- Questions only → mode=answer, empty updates.\n` +
-      `- Layout requests → layout.* only, never media.*.\n` +
-      `- Named gallery cards → exact media.gallery.N from GALLERY CARD MAP (only when user asked for that card image).\n` +
-      `- Never remove page "home".\n` +
-      `- Prefer many small ID updates over inventing unknown ids.\n`,
+      `Pages: ${pageList}\n` +
+      (historyBlock ? `Recent chat:\n${historyBlock}\n` : "") +
+      (workBlock ? `Work:\n${workBlock}\n` : "") +
+      imageBlock +
+      `Sections:\n${sectionMap.slice(0, 1800)}\n` +
+      `Gallery:\n${galleryCardMap}\n` +
+      `IDs:\n${catalog.slice(0, 2500)}\n` +
+      `Style IDs: styles.nav.*, styles.motion.*, styles.button.*, styles.cards.*, styles.tokens.*, styles.patches.*, styles.customCss, theme.primary\n` +
+      (components ? `New-page components: ${components}\n` : "") +
+      `content:\n${contentPreview}\n` +
+      `layout:${JSON.stringify(config.layout || {})}\n` +
+      `styles:${JSON.stringify(config.styles || {}).slice(0, 800)}\n\n` +
+      `User: ${prompt}\n\n` +
+      `JSON only: {"mode":"answer"|"mutate","assistantMessage":"...","updates":[{"type":"...","id":"...","value":"...","op":"set|append|hide_section|show_section|remove_page"}],"newPages":[]}\n` +
+      `Rules: stay in plan; CSS via styles.*; nav hover ≠ gallery Menu card; never remove home; never claim CSS is impossible.\n`,
     config: {
       responseMimeType: "application/json",
-      temperature: 0.3,
-      maxOutputTokens: 8192,
+      temperature: 0.2,
+      maxOutputTokens: maxOut,
       thinkingConfig: { thinkingBudget: 0 },
     },
   });
@@ -222,7 +236,6 @@ async function editWithGemini(args: EditArgs): Promise<AiUpdatePayload> {
   const parsed = parseJsonLoose(result.text ?? "") as Partial<AiUpdatePayload>;
   let payload = normalizeEditPayload(parsed, activePageKey, prompt, config);
 
-  // Force uploaded image if model forgot (and plan allows image)
   if (
     images?.length &&
     payload.mode === "mutate" &&

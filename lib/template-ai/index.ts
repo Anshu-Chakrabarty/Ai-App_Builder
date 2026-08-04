@@ -24,6 +24,8 @@ export { renderBoundPages } from "./render-bound";
 export { runWebsiteAgent, materializeNewPages } from "./agent";
 export type { AgentHistoryTurn, AgentWorkEntry } from "./agent";
 export { runEditPipeline } from "./agents/pipeline";
+export { interpretPrompt } from "./agents/interpreter";
+export type { StructuredInstruction } from "./agents/interpreter";
 export type {
   IntentPlan,
   EditPlan,
