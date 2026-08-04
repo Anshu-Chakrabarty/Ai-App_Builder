@@ -12,14 +12,16 @@ Use this guide when chatting in **Studio**. Click a section in the preview first
 ```
 User prompt
     → Natural Language (intent)
-    → Prompt Interpreter (structured instruction — often zero LLM)
+    → ★ Prompt Interpretation Layer (MIDDLE) → structured technical JSON
     → Design Planning (allowed IDs)
-    → Website AI Agent (Gemini only if needed)
-    → Validation
+    → Website AI Agent (apply instruction — Gemini only if needed)
+    → Validation (intended-only)
     → Live preview / download
 ```
 
-**Efficiency tip:** Clear prompts (page + section + action) often resolve **without** calling Gemini — faster and more accurate. Use [website-prompt-guide](./website-prompt-guide.md) patterns.
+The **Prompt Interpreter** always runs in the middle. It turns any natural-language request into structured actions (`copy_update`, `style_update`, `image_update`, `page_ops`, …) with constraints — so the editor never guesses from raw chat alone.
+
+**Efficiency tip:** Clear prompts (page + section + action) often resolve **locally inside the interpreter** (no Gemini). Ambiguous prompts get a small interpreter LLM call, then a scoped edit.
 
 **Context the interpreter uses**
 

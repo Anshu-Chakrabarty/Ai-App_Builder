@@ -25,6 +25,7 @@ import type {
 import { scopedCatalog } from "./plan";
 import type { EditPlan, IntentPlan } from "./types";
 import type { StructuredInstruction } from "./interpreter";
+import { actionsToUpdates } from "./interpreter";
 
 export type EditArgs = {
   prompt: string;
@@ -49,23 +50,37 @@ export type EditArgs = {
  * Skips Gemini whenever the interpreter/planner already resolved updates.
  */
 export async function editFromPlan(args: EditArgs): Promise<AiUpdatePayload> {
-  const { plan, intent, prompt, config, images } = args;
+  const { plan, intent, prompt, config, images, instruction } = args;
 
-  // Planner / interpreter already resolved surgical updates — fastest path
+  // Interpreter / planner resolved — fastest accurate path
   if (plan.resolvedUpdates) {
     return {
       mode: plan.resolvedUpdates.length ? "mutate" : "answer",
       assistantMessage:
         plan.assistantHint ||
+        instruction?.assistantHint ||
         (plan.resolvedUpdates.length
-          ? `Applied planned updates (${plan.resolvedUpdates.map((u) => u.id).join(", ")}).`
+          ? `Applied interpreted updates (${plan.resolvedUpdates.map((u) => u.id).join(", ")}).`
           : "No config changes needed."),
       updates: plan.resolvedUpdates,
       newPages: [],
     };
   }
 
-  // Gallery card without upload — stock photo (still deterministic)
+  if (instruction?.actions?.length && !instruction.needsModel) {
+    const updates = actionsToUpdates(instruction.actions, config);
+    if (updates.length) {
+      return {
+        mode: "mutate",
+        assistantMessage:
+          instruction.assistantHint ||
+          `Applied ${updates.length} interpreted change(s).`,
+        updates,
+      };
+    }
+  }
+
+  // Gallery card without upload — stock photo
   if (intent.fastPath === "gallery-card") {
     const labels = galleryLabelsFor(config.media?.category || "default");
     const idx = resolveGalleryCardIndex(prompt, labels, intent.target) ?? 0;
@@ -80,7 +95,6 @@ export async function editFromPlan(args: EditArgs): Promise<AiUpdatePayload> {
     };
   }
 
-  // Cheap local heuristic before paying for Gemini
   const heuristic = heuristicEdit(args);
   if (
     heuristic.mode === "mutate" &&
@@ -155,16 +169,19 @@ async function editWithGemini(args: EditArgs): Promise<AiUpdatePayload> {
     .join("\n");
 
   const instructionBlock = instruction
-    ? `STRUCTURED INSTRUCTION:\n${JSON.stringify(
+    ? `PROMPT INTERPRETER OUTPUT (follow exactly):\n${JSON.stringify(
         {
           page: instruction.page,
           target: instruction.target,
-          actions: instruction.actions.slice(0, 12),
-          constraints: instruction.constraints.slice(0, 8),
+          summary: instruction.summary,
+          confidence: instruction.confidence,
+          source: instruction.source,
+          actions: instruction.actions.slice(0, 16),
+          constraints: instruction.constraints.slice(0, 10),
         },
         null,
         0
-      )}\n\n`
+      )}\nImplement ONLY these actions as config ID updates.\n\n`
     : "";
 
   const planBlock =

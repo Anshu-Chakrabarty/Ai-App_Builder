@@ -54,6 +54,7 @@ export type EditPlan = {
 
 export type PipelineStageId =
   | "understand"
+  | "interpret"
   | "plan"
   | "edit"
   | "validate";
@@ -70,6 +71,7 @@ export type PipelineResult = AiUpdatePayload & {
   pipeline: {
     intent: IntentPlan;
     plan: EditPlan;
+    instruction?: import("./interpreter").StructuredInstruction;
     stages: PipelineStageStatus[];
     dropped: ConfigUpdate[];
     warnings: string[];

@@ -48,6 +48,7 @@ export default function StudioPage() {
     if (!busy) return;
     setPipelineStages([
       { id: "understand", label: "Natural Language", status: "running" },
+      { id: "interpret", label: "Prompt Interpreter", status: "pending" },
       { id: "plan", label: "Design Planning", status: "pending" },
       { id: "edit", label: "Code Editing", status: "pending" },
       { id: "validate", label: "Validation", status: "pending" },

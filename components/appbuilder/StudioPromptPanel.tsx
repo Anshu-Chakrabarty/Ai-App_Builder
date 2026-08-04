@@ -352,6 +352,7 @@ export function StudioPromptPanel({
                     ? pipelineStages
                     : [
                         { id: "understand", label: "Natural Language", status: "running" as const },
+                        { id: "interpret", label: "Prompt Interpreter", status: "pending" as const },
                         { id: "plan", label: "Design Planning", status: "pending" as const },
                         { id: "edit", label: "Code Editing", status: "pending" as const },
                         { id: "validate", label: "Validation", status: "pending" as const },
