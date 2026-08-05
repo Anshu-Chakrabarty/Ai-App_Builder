@@ -1,0 +1,294 @@
+{
+  "at": 1785909931885,
+  "failed": 0,
+  "report": [
+    {
+      "id": "copy-hero-title-quoted",
+      "category": "Copy",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "copy-hero-subtitle-set",
+      "category": "Copy",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "copy-cta-button",
+      "category": "Buttons",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "theme-accent-hex",
+      "category": "Theme",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "theme-accent-named",
+      "category": "Theme",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "theme-background",
+      "category": "Theme",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "style-nav-hover",
+      "category": "Styles",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "style-card-lift",
+      "category": "Styles",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "cards-6-images-3col",
+      "category": "Cards",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "cards-8-images",
+      "category": "Cards",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "cards-layout-3col",
+      "category": "Layout",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "features-2col",
+      "category": "Layout",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "gallery-3col-equal",
+      "category": "Layout",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "image-hero",
+      "category": "Images",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "image-split",
+      "category": "Images",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "image-gallery-upload",
+      "category": "Images",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "section-hide-gallery",
+      "category": "Sections",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "section-hide-features",
+      "category": "Sections",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "form-title",
+      "category": "Forms",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "form-submit",
+      "category": "Forms",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "brand-name",
+      "category": "Brand",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "features-title",
+      "category": "Copy",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "section-show-features",
+      "category": "Sections",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "page-delete-contact",
+      "category": "Pages",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "copy-features-item",
+      "category": "Copy",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "cards-reduce-to-3",
+      "category": "Cards",
+      "ok": true,
+      "detail": "ok"
+    }
+  ],
+  "cases": [
+    {
+      "id": "copy-hero-title-quoted",
+      "category": "Copy",
+      "prompt": "Change the hero title to \"Welcome to Fort Care\""
+    },
+    {
+      "id": "copy-hero-subtitle-set",
+      "category": "Copy",
+      "prompt": "Set the subtitle to \"Same-week visits with a calm clinic feel.\""
+    },
+    {
+      "id": "copy-cta-button",
+      "category": "Buttons",
+      "prompt": "Make the hero CTA say \"Book a visit\""
+    },
+    {
+      "id": "theme-accent-hex",
+      "category": "Theme",
+      "prompt": "Change the accent color to #0F766E"
+    },
+    {
+      "id": "theme-accent-named",
+      "category": "Theme",
+      "prompt": "Set the primary brand color to teal"
+    },
+    {
+      "id": "theme-background",
+      "category": "Theme",
+      "prompt": "Change the background to #F8FAFC"
+    },
+    {
+      "id": "style-nav-hover",
+      "category": "Styles",
+      "prompt": "Make nav links turn teal on hover with an underline"
+    },
+    {
+      "id": "style-card-lift",
+      "category": "Styles",
+      "prompt": "Add a hover lift animation on cards"
+    },
+    {
+      "id": "cards-6-images-3col",
+      "category": "Cards",
+      "prompt": "make it 6 cards with images and text and align as 3 by 3 - Services at a glance"
+    },
+    {
+      "id": "cards-8-images",
+      "category": "Cards",
+      "prompt": "Show 8 service cards with photos"
+    },
+    {
+      "id": "cards-layout-3col",
+      "category": "Layout",
+      "prompt": "Align Services at a glance into 3 columns"
+    },
+    {
+      "id": "features-2col",
+      "category": "Layout",
+      "prompt": "Put the feature icons in a 2-column grid"
+    },
+    {
+      "id": "gallery-3col-equal",
+      "category": "Layout",
+      "prompt": "Put the gallery in a 3-column equal grid"
+    },
+    {
+      "id": "image-hero",
+      "category": "Images",
+      "prompt": "Replace the hero background image with a modern clinic photo"
+    },
+    {
+      "id": "image-split",
+      "category": "Images",
+      "prompt": "Change the split section image"
+    },
+    {
+      "id": "image-gallery-upload",
+      "category": "Images",
+      "prompt": "Update the first gallery card image"
+    },
+    {
+      "id": "section-hide-gallery",
+      "category": "Sections",
+      "prompt": "Hide the gallery section on Home"
+    },
+    {
+      "id": "section-hide-features",
+      "category": "Sections",
+      "prompt": "Hide the features section"
+    },
+    {
+      "id": "form-title",
+      "category": "Forms",
+      "prompt": "Rewrite the form title to \"Talk to our care team\""
+    },
+    {
+      "id": "form-submit",
+      "category": "Forms",
+      "prompt": "Change the form submit button to \"Send message\""
+    },
+    {
+      "id": "brand-name",
+      "category": "Brand",
+      "prompt": "Rename the site brand to \"Fort Hospital\""
+    },
+    {
+      "id": "features-title",
+      "category": "Copy",
+      "prompt": "Change the features heading to \"Why patients stay\""
+    },
+    {
+      "id": "section-show-features",
+      "category": "Sections",
+      "prompt": "Show the features section again"
+    },
+    {
+      "id": "page-delete-contact",
+      "category": "Pages",
+      "prompt": "Delete the Contact page"
+    },
+    {
+      "id": "copy-features-item",
+      "category": "Copy",
+      "prompt": "Change the first feature title to \"Online booking\""
+    },
+    {
+      "id": "cards-reduce-to-3",
+      "category": "Cards",
+      "prompt": "make it 3 cards - Services at a glance"
+    }
+  ]
+}
