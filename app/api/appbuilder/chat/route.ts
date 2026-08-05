@@ -1,9 +1,9 @@
 // app/api/appbuilder/chat/route.ts
-import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
 import { generateContentResilient } from "@/lib/gemini";
+import { getGeminiClient } from "@/lib/llm-client";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+const ai = getGeminiClient();
 
 export const runtime = "nodejs";
 export const maxDuration = 60;

@@ -1,4 +1,4 @@
-// lib/openrouter.ts — OpenRouter chat completions (OpenAI-compatible)
+// lib/openrouter.ts — OpenRouter chat completions with model fallbacks
 export type OpenRouterGenerateArgs = {
   contents: string;
   config?: Record<string, unknown>;
@@ -15,19 +15,27 @@ export function hasOpenRouterKey(): boolean {
 }
 
 export function openRouterModel(): string {
-  return process.env.OPENROUTER_MODEL?.trim() || "openai/gpt-4o";
+  return process.env.OPENROUTER_MODEL?.trim() || "openai/gpt-4o-mini";
 }
 
-/**
- * Call OpenRouter. Uses chat/completions so we can race/replace Gemini.
- */
-export async function generateViaOpenRouter(
+/** Preferred model first, then cheaper/reliable fallbacks */
+function openRouterModelCandidates(): string[] {
+  const preferred = openRouterModel();
+  const extras = [
+    "openai/gpt-4o-mini",
+    "google/gemini-2.5-flash",
+    "google/gemini-2.0-flash-001",
+    "meta-llama/llama-3.3-70b-instruct",
+    "openai/gpt-4o",
+  ];
+  return [preferred, ...extras.filter((m) => m !== preferred)];
+}
+
+async function callOpenRouterModel(
+  key: string,
+  model: string,
   args: OpenRouterGenerateArgs
 ): Promise<OpenRouterGenerateResult> {
-  const key = process.env.OPENROUTER_API_KEY?.trim();
-  if (!key) throw new Error("OPENROUTER_API_KEY is not set");
-
-  const model = openRouterModel();
   const maxTokens =
     typeof args.config?.maxOutputTokens === "number"
       ? args.config.maxOutputTokens
@@ -43,12 +51,11 @@ export async function generateViaOpenRouter(
   const body: Record<string, unknown> = {
     model,
     messages,
-    max_tokens: maxTokens,
+    max_tokens: Math.min(maxTokens, 8192),
     temperature:
       typeof args.config?.temperature === "number" ? args.config.temperature : 0.4,
   };
 
-  // Match Gemini JSON mode when callers request it
   if (args.config?.responseMimeType === "application/json") {
     body.response_format = { type: "json_object" };
   }
@@ -88,7 +95,38 @@ export async function generateViaOpenRouter(
     );
   }
 
-  return { text: typeof text === "string" ? text : String(text), provider: "openrouter" };
+  return {
+    text: typeof text === "string" ? text : String(text),
+    provider: "openrouter",
+  };
+}
+
+/**
+ * Call OpenRouter. Tries preferred model, then fallbacks (quota / model errors).
+ */
+export async function generateViaOpenRouter(
+  args: OpenRouterGenerateArgs
+): Promise<OpenRouterGenerateResult> {
+  const key = process.env.OPENROUTER_API_KEY?.trim();
+  if (!key) throw new Error("OPENROUTER_API_KEY is not set");
+
+  let lastErr: unknown;
+  for (const model of openRouterModelCandidates()) {
+    try {
+      const result = await callOpenRouterModel(key, model, args);
+      if (model !== openRouterModel()) {
+        console.info(`OpenRouter fell back to ${model}`);
+      }
+      return result;
+    } catch (err) {
+      lastErr = err;
+      console.warn(`OpenRouter ${model} failed:`, errMessage(err).slice(0, 240));
+    }
+  }
+
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error(String(lastErr ?? "OpenRouter failed"));
 }
 
 export function isOpenRouterError(err: unknown): boolean {

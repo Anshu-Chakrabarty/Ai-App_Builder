@@ -526,7 +526,7 @@ export default function StudioPage() {
       const res = await fetch("/api/appbuilder/build", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project }),
+        body: JSON.stringify({ project, regenerate: true }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Build failed");

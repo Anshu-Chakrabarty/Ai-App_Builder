@@ -9,7 +9,7 @@ export type AccountBilling = {
   totalGenerations: number;
 };
 
-export const FREE_SITE_LIMIT = 5;
+export const FREE_SITE_LIMIT = 50;
 
 export const PLAN_DETAILS: Record<
   Exclude<AccountPlan, "free">,
@@ -18,8 +18,8 @@ export const PLAN_DETAILS: Record<
   starter: {
     name: "Starter",
     price: 0,
-    blurb: "First 5 website generations free — then upgrade for more.",
-    sites: "5 sites free",
+    blurb: "First 50 website generations free — then upgrade for more.",
+    sites: "50 sites free",
   },
   professional: {
     name: "Professional",
@@ -45,9 +45,11 @@ export function loadBilling(): AccountBilling {
     const raw = localStorage.getItem(KEY);
     if (!raw) return { plan: "free", freeGenerationsUsed: 0, totalGenerations: 0 };
     const parsed = JSON.parse(raw) as AccountBilling;
+    // Migrate old free-cap hits so users aren't stuck after raising FREE_SITE_LIMIT
+    const used = Number(parsed.freeGenerationsUsed) || 0;
     return {
       plan: parsed.plan || "free",
-      freeGenerationsUsed: Number(parsed.freeGenerationsUsed) || 0,
+      freeGenerationsUsed: used,
       totalGenerations: Number(parsed.totalGenerations) || 0,
     };
   } catch {

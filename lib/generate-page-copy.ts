@@ -1,13 +1,13 @@
-// lib/generate-page-copy.ts — shared Gemini page copy generation
-import { GoogleGenAI } from "@google/genai";
+// lib/generate-page-copy.ts — shared page copy generation (OpenRouter / Gemini)
 import { generateContentResilient, parseJsonLoose } from "@/lib/gemini";
+import { getGeminiClient } from "@/lib/llm-client";
 import {
   HEALTHCARE_SYSTEM,
   pageCopyPrompt,
   summarizeExistingCopy,
 } from "@/lib/healthcare-prompt";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+const ai = getGeminiClient();
 
 export async function generatePageCopy(args: {
   schema: string;

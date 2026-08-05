@@ -884,6 +884,10 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("modify-site error", err);
-    return NextResponse.json({ error: "Modify failed." }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json(
+      { error: `Modify failed: ${message.slice(0, 240)}` },
+      { status: 500 }
+    );
   }
 }

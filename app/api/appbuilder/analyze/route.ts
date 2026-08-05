@@ -1,14 +1,14 @@
 // app/api/appbuilder/analyze/route.ts
-import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
 import {
   generateContentResilient,
   parseJsonLoose,
 } from "@/lib/gemini";
+import { getGeminiClient } from "@/lib/llm-client";
 import { analyzeIdeaLocal } from "@/lib/appbuilder/project";
 import { FEATURE_CATALOG } from "@/lib/appbuilder/catalog";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+const ai = getGeminiClient();
 
 export const runtime = "nodejs";
 export const maxDuration = 60;

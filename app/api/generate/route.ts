@@ -1,5 +1,4 @@
 // app/api/generate/route.ts — prompt-driven sitemap + copy
-import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
 import { TEMPLATES } from "@/lib/templates";
 import { slugForPage } from "@/lib/page-designs";
@@ -9,6 +8,7 @@ import {
   parseJsonLoose,
   QuotaExceededError,
 } from "@/lib/gemini";
+import { getGeminiClient } from "@/lib/llm-client";
 import {
   HEALTHCARE_SYSTEM,
   buildHealthcareBrief,
@@ -17,7 +17,7 @@ import { parsePagesFromBrief } from "@/lib/page-request";
 import { generatePageCopy } from "@/lib/generate-page-copy";
 import type { PageDef } from "@/lib/types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+const ai = getGeminiClient();
 
 export const runtime = "nodejs";
 export const maxDuration = 60;

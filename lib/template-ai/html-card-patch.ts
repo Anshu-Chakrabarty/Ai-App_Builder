@@ -22,25 +22,29 @@ export function patchCardSectionsInSiteHtml(
 
 export function patchCardSectionsInHtml(html: string, config: SiteConfig): string {
   if (!html || typeof html !== "string") return html;
-  let next = html;
+  try {
+    let next = html;
 
-  const services = Array.isArray(config.content?.services) ? config.content.services : null;
-  if (services && services.length) {
-    next = patchServicesSection(next, services, config);
+    const services = Array.isArray(config.content?.services) ? config.content.services : null;
+    if (services && services.length) {
+      next = patchServicesSection(next, services, config);
+    }
+
+    const features = config.content?.visual?.features?.items;
+    if (Array.isArray(features) && features.length) {
+      next = patchFeaturesSection(next, features, config);
+    }
+
+    const layoutCss = layoutOverrideCSS(config.layout || null);
+    if (layoutCss) {
+      next = injectStyleOnce(next, "ai-layout-override", layoutCss);
+    }
+
+    return next;
+  } catch (err) {
+    console.error("patchCardSectionsInHtml failed:", err);
+    return html;
   }
-
-  const features = config.content?.visual?.features?.items;
-  if (Array.isArray(features) && features.length) {
-    next = patchFeaturesSection(next, features, config);
-  }
-
-  // Always inject layout CSS for service/feature columns
-  const layoutCss = layoutOverrideCSS(config.layout || null);
-  if (layoutCss) {
-    next = injectStyleOnce(next, "ai-layout-override", layoutCss);
-  }
-
-  return next;
 }
 
 function patchServicesSection(

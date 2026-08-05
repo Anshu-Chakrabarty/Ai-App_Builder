@@ -1,11 +1,11 @@
 // app/api/appbuilder/build/route.ts — actually generate the multi-page site
-import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
 import {
   generateContentResilient,
   parseJsonLoose,
   QuotaExceededError,
 } from "@/lib/gemini";
+import { getGeminiClient } from "@/lib/llm-client";
 import { HEALTHCARE_SYSTEM } from "@/lib/healthcare-prompt";
 import { generatePageCopy } from "@/lib/generate-page-copy";
 import { getPageDesign } from "@/lib/page-designs";
@@ -23,13 +23,96 @@ import { analyzeTemplate, renderSiteFromConfig } from "@/lib/template-ai";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+const ai = getGeminiClient();
+
+function buildFallbackSite(args: {
+  project: AppProject;
+  brandName: string;
+  accent: string;
+  idea: string;
+  message?: string;
+}) {
+  const template = pickSiteTemplate(
+    args.idea,
+    args.project.siteTemplateId || args.project.templateId
+  );
+  const pages =
+    args.project.site?.config?.pages?.length
+      ? args.project.site.config.pages
+      : args.project.site?.pages?.length
+        ? args.project.site.pages.map((p) => ({
+            key: p.key,
+            label: p.label,
+            slug: p.key === "home" ? "index.html" : `${p.key}.html`,
+          }))
+        : template.pages;
+  const content =
+    args.project.site?.config?.content &&
+    Object.keys(args.project.site.config.content).length
+      ? args.project.site.config.content
+      : structuredClone(template.fallback || {});
+  const { manifest, config, knowledge } = analyzeTemplate({
+    template,
+    pages,
+    content,
+    brandName: args.brandName,
+    accent: args.accent,
+    idea: args.idea,
+  });
+  const merged = {
+    ...config,
+    ...(args.project.site?.config || {}),
+    content,
+    pages,
+    brandName: args.brandName,
+    accent: args.accent,
+    media: args.project.site?.config?.media || config.media,
+    layout: args.project.site?.config?.layout || config.layout,
+    styles: args.project.site?.config?.styles || config.styles,
+    updatedAt: Date.now(),
+  };
+  const html = renderSiteFromConfig({
+    template,
+    manifest: args.project.site?.manifest || manifest,
+    config: merged,
+    knowledge: args.project.site?.knowledge || knowledge,
+    boundPages: args.project.site?.boundPages,
+    assets: args.project.site?.assets,
+  });
+  return {
+    siteTemplateId: template.id,
+    templateName: template.name,
+    copy: merged.content,
+    pages: merged.pages,
+    html,
+    manifest: args.project.site?.manifest || manifest,
+    config: merged,
+    knowledge: args.project.site?.knowledge || knowledge,
+    boundPages: args.project.site?.boundPages,
+    assets: args.project.site?.assets,
+    usedFallback: true,
+    artifacts: {
+      githubActions: buildGithubActionsYaml(args.project),
+      dockerfile: buildDockerfile(args.project),
+      readme: buildReadme(args.project),
+    },
+    source: args.project.site?.source || "template",
+    message:
+      args.message ||
+      "Site built from template sample copy (AI model unavailable). You can still edit in Studio.",
+  };
+}
 
 export async function POST(req: Request) {
   let raw = "";
+  let projectRef: AppProject | null = null;
+  let brandName = "AppBuilder Site";
+  let accent = "#7C3AED";
+  let idea = "";
   try {
     const body = await req.json();
     const project = body.project as AppProject;
+    projectRef = project;
     if (!project?.idea?.trim() && !project?.requirementsText?.trim()) {
       return NextResponse.json(
         { error: "Provide an idea or upload a requirements file." },
@@ -37,16 +120,19 @@ export async function POST(req: Request) {
       );
     }
 
-    const brandName = project.name || "AppBuilder Site";
-    const accent = project.theme?.primary || "#7C3AED";
-    const idea = [project.idea, project.requirementsText].filter(Boolean).join("\n\n");
+    brandName = project.name || "AppBuilder Site";
+    accent = project.theme?.primary || "#7C3AED";
+    idea = [project.idea, project.requirementsText].filter(Boolean).join("\n\n");
 
-    // ——— Soft regenerate for existing Studio sites ———
-    // Preserve config / bound HTML / Studio edits; re-render with current template code.
+    // Soft regenerate — only when explicitly regenerating an existing Studio site
     const existingConfig = project.site?.config;
     const forceFull = body.forceFull === true || body.mode === "full";
+    const isRegen =
+      body.regenerate === true ||
+      Boolean(project.site?.builtAt && project.site?.html && Object.keys(project.site.html).length);
     if (
       !forceFull &&
+      isRegen &&
       existingConfig?.content &&
       Object.keys(existingConfig.content).length > 0 &&
       (project.site?.html || project.site?.boundPages)
@@ -90,6 +176,9 @@ export async function POST(req: Request) {
           boundPages: project.site?.boundPages,
           assets: project.site?.assets,
         });
+        if (!html || !Object.keys(html).length) {
+          throw new Error("Soft regenerate produced empty HTML");
+        }
         const artifacts = {
           githubActions: buildGithubActionsYaml(project),
           dockerfile: buildDockerfile(project),
@@ -110,7 +199,7 @@ export async function POST(req: Request) {
           artifacts,
           source: project.site?.source || "template",
           message:
-            "Site re-rendered from your existing Studio config (edits preserved). Use Full regenerate only if you want a fresh AI rewrite.",
+            "Site re-rendered from your existing Studio config (edits preserved).",
         });
       } catch (softErr) {
         console.warn(
@@ -321,21 +410,29 @@ export async function POST(req: Request) {
       usedFallback,
       artifacts,
       message: usedFallback
-        ? "AI-ready site built with sample config where the model was unavailable."
+        ? "AI-ready site built with sample config where the model was unavailable. Studio edits still work."
         : "Template analyzed into manifest + config. Site rendered from data bindings.",
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("build error:", message);
-    if (err instanceof QuotaExceededError || /Quota exceeded|free_tier/i.test(message)) {
-      return NextResponse.json(
-        {
-          error:
-            "Gemini quota exceeded. Add billing or wait for reset, then regenerate. Offline sample build was not returned for this request — retry.",
-        },
-        { status: 429 }
-      );
+    if (projectRef) {
+      try {
+        const fallback = buildFallbackSite({
+          project: projectRef,
+          brandName,
+          accent,
+          idea: idea || projectRef.idea || "Website",
+          message: `Generation recovered with template sample (${message.slice(0, 120)}). You can edit in Studio.`,
+        });
+        return NextResponse.json(fallback);
+      } catch (fallbackErr) {
+        console.error("build fallback also failed:", fallbackErr);
+      }
     }
-    return NextResponse.json({ error: "Build failed: " + message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Build failed: " + message },
+      { status: 500 }
+    );
   }
 }

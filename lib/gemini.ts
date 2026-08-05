@@ -258,7 +258,10 @@ export async function generateContentResilient(
       console.info("LLM via OpenRouter");
       return { text: r.text, provider: r.provider };
     } catch (err) {
-      const allowGeminiFallback = process.env.LLM_GEMINI_FALLBACK === "1";
+      // Auto-fallback to Gemini when a key exists (unless explicitly disabled)
+      const allowGeminiFallback =
+        process.env.LLM_GEMINI_FALLBACK !== "0" &&
+        Boolean(process.env.GEMINI_API_KEY?.trim());
       if (!allowGeminiFallback) {
         throw err instanceof Error
           ? err
