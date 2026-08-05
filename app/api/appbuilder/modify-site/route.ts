@@ -749,9 +749,10 @@ export async function POST(req: Request) {
     const cardReq = detectCardCountRequest(msg);
     let agentUpdates = [...(agent.updates || [])];
     if (
-      cardReq.count != null ||
-      cardReq.wantImages ||
-      (/\bcards?\b/i.test(msg) && /\b(image|photo|column|grid|align)\b/i.test(msg))
+      (cardReq.count != null ||
+        cardReq.wantImages ||
+        (/\bcards?\b/i.test(msg) && /\b(image|photo|column|grid|align)\b/i.test(msg))) &&
+      !/\bgallery\b/i.test(msg)
     ) {
       const forced = buildCardListUpdates({
         prompt: msg,

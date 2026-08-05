@@ -22,16 +22,29 @@ export function resolveGalleryCardIndex(
   const fromId = (target?.id || "").match(/^media\.gallery\.(\d+)$/i);
   if (fromId) return Number(fromId[1]);
 
+  // Don't treat copy edits ("hero title", "Fort Care") as gallery hits
+  const galleryContext =
+    /\b(gallery|photo\s*grid|shot|tile|unsplash)\b/.test(msg) ||
+    /\b(image|photo|picture)\b/.test(msg) ||
+    /\b(card)\b/.test(msg) && !/\b(service|feature|pricing|title|heading|subtitle|cta|button)\b/.test(msg) ||
+    /^media\.gallery/i.test(target?.id || "");
+
   for (let i = 0; i < labels.length; i++) {
     const lab = String(labels[i] || "")
       .toLowerCase()
       .trim();
     if (lab.length < 2) continue;
+    // Short labels ("Care", "Team") only match with explicit gallery/image context
+    if (lab.length <= 5 && !galleryContext) continue;
     const re = new RegExp(
       `\\b${lab.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
       "i"
     );
     if (re.test(msg)) return i;
+  }
+
+  if (!galleryContext && !/\b(first|second|third|fourth|fifth|1st|2nd|3rd)\b/.test(msg)) {
+    return null;
   }
 
   const ordinals: Record<string, number> = {
@@ -126,7 +139,7 @@ export function isLayoutIntent(prompt: string): boolean {
   }
   if (/\b\d\s*[\/x×]\s*\d\b/.test(msg)) return true;
   if (/\b(\d)\s*by\s*(\d)\b/.test(msg)) return true;
-  if (/\b(\d)\s*col(?:umn)?s?\b/.test(msg)) return true;
+  if (/\b(\d)[- ]?col(?:umn)?s?\b/.test(msg)) return true;
   if (/\bin\s+a\s+\d[- ]?(column|col|row)\b/.test(msg)) return true;
   if (/\b(equal|uniform)\s+(grid|columns?)\b/.test(msg)) return true;
   if (/\b(align|re-?arrange|arrange)\b/.test(msg) && /\b(column|columns|grid|row|\d)\b/.test(msg)) {
@@ -141,7 +154,8 @@ export function detectColumnCount(prompt: string): number {
   const m =
     msg.match(/\b(\d)\s*[\/x×]\s*\d\b/) ||
     msg.match(/\b(\d)\s*by\s*\d\b/) ||
-    msg.match(/\b(\d)\s*col(?:umn)?s?\b/) ||
+    msg.match(/\b(\d)[- ]?col(?:umn)?s?\b/) ||
+    msg.match(/\bin\s+a\s+(\d)[- ]?(?:column|col|row)\b/) ||
     msg.match(/\bin\s+(\d)\b/) ||
     msg.match(/\b(\d)\s*per\s*row\b/);
   const n = m ? Number(m[1]) : 3;

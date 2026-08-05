@@ -216,9 +216,11 @@ function interpretPromptLocal(args: InterpretArgs): StructuredInstruction {
   const cardReq = detectCardCountRequest(msg);
   const cardish =
     cardReq.count != null ||
-    (cardReq.wantImages && /\b(card|service|glance|feature)\b/i.test(msg)) ||
-    (/\b(card|service|glance)\b/i.test(msg) && cardReq.wantText && cardReq.wantImages);
-  if (cardish) {
+    (cardReq.wantImages && /\b(card|service|glance|feature)\b/i.test(msg) && !/\bgallery\b/i.test(msg)) ||
+    (/\b(service|glance)\b/i.test(msg) &&
+      /\bcards?\b/i.test(msg) &&
+      (cardReq.wantText || cardReq.wantImages));
+  if (cardish && !/\bgallery\b/i.test(msg)) {
     // Studio often mis-tags “Services at a glance” as home.highlights
     if (
       target?.id === "home.highlights" ||
@@ -294,9 +296,11 @@ function interpretPromptLocal(args: InterpretArgs): StructuredInstruction {
   const namedIdx = resolveGalleryCardIndex(msg, galleryLabels, target);
   if (
     namedIdx != null &&
-    /\b(image|photo|picture|card|replace|change|swap|update|use)\b/i.test(msg) &&
+    /\b(image|photo|picture|replace|swap|upload)\b/i.test(msg) &&
+    /\b(gallery|card|shot|tile|photo\s*grid)\b/i.test(msg) &&
     !isStyleIntent(msg) &&
-    !/\bnav(igation)?\b/i.test(msg)
+    !/\bnav(igation)?\b/i.test(msg) &&
+    !/\b(title|heading|subtitle|cta|button|copy|text)\b/i.test(msg)
   ) {
     const imageId = `media.gallery.${namedIdx}`;
     const value = images?.[0] || pickStockImage(msg, config.media?.category);
@@ -467,26 +471,7 @@ function interpretPromptLocal(args: InterpretArgs): StructuredInstruction {
     });
   }
 
-  // ——— BUTTON / CTA LABEL ———
-  const button = detectButtonUpdate(msg);
-  if (button) {
-    updates.push({ type: "text", id: button.id, value: button.value, op: "set" });
-    actions.push({ type: "button_update", id: button.id, value: button.value });
-    return finish({
-      page,
-      target: { id: button.id, kind: "field", label: button.id },
-      actions,
-      constraints,
-      updates,
-      summary: `Button ${button.id} → “${button.value}”`,
-      confidence: 0.9,
-      source: "local",
-      needsModel: false,
-      hint: `Updated button to “${button.value}”.`,
-    });
-  }
-
-  // ——— FORM TITLES / SUBMIT ———
+  // ——— FORM TITLES / SUBMIT (before generic button — “submit button” ≠ CTA) ———
   const form = detectFormUpdate(msg);
   if (form) {
     for (const u of form) {
@@ -504,6 +489,25 @@ function interpretPromptLocal(args: InterpretArgs): StructuredInstruction {
       source: "local",
       needsModel: false,
       hint: `Updated form labels.`,
+    });
+  }
+
+  // ——— BUTTON / CTA LABEL ———
+  const button = detectButtonUpdate(msg);
+  if (button) {
+    updates.push({ type: "text", id: button.id, value: button.value, op: "set" });
+    actions.push({ type: "button_update", id: button.id, value: button.value });
+    return finish({
+      page,
+      target: { id: button.id, kind: "field", label: button.id },
+      actions,
+      constraints,
+      updates,
+      summary: `Button ${button.id} → “${button.value}”`,
+      confidence: 0.9,
+      source: "local",
+      needsModel: false,
+      hint: `Updated button to “${button.value}”.`,
     });
   }
 
@@ -1002,16 +1006,38 @@ function detectColor(msg: string): string | null {
   return null;
 }
 
+function detectFormUpdate(msg: string): { id: string; value: string }[] | null {
+  if (!/\bform\b/i.test(msg) && !/\bsubmit\b/i.test(msg)) return null;
+  const out: { id: string; value: string }[] = [];
+  const title =
+    msg.match(/\bform\s+title\s+(?:to|as|:)\s*["“](.+?)["”]/i) ||
+    msg.match(/\b(?:rewrite|set|change)\s+(?:the\s+)?form\s+title\s+to\s*["“](.+?)["”]/i);
+  if (title) out.push({ id: "visual.form.title", value: title[1] });
+  const submit =
+    msg.match(
+      /\b(?:form\s+)?submit\s+(?:button\s+)?(?:label\s+)?(?:to|as|:)\s*["“](.+?)["”]/i
+    ) ||
+    msg.match(
+      /\b(?:change|set|update|make)\s+(?:the\s+)?(?:form\s+)?submit\s+button\s+to\s*["“](.+?)["”]/i
+    ) ||
+    msg.match(/\bsubmit\s+button\s+to\s*["“](.+?)["”]/i);
+  if (submit) out.push({ id: "visual.form.submitLabel", value: submit[1] });
+  return out.length ? out : null;
+}
+
 function detectButtonUpdate(msg: string): { id: string; value: string } | null {
+  // Don't steal form submit prompts
+  if (/\bsubmit\b/i.test(msg) && /\b(form|button)\b/i.test(msg)) return null;
   const m =
     msg.match(
-      /\b(?:add|change|set|update|make|rename)\s+(?:a\s+|the\s+)?(?:primary\s+|secondary\s+)?(?:["“](.+?)["”]|([A-Za-z][^.]{1,40}?))\s+button\b/i
+      /\b(?:add|change|set|update|make|rename)\s+(?:a\s+|the\s+)?(?:primary\s+|secondary\s+)?["“](.+?)["”]\s+button\b/i
     ) ||
     msg.match(/\bbutton\s+(?:label|text)?\s*(?:to|as|:)\s*["“](.+?)["”]/i) ||
     msg.match(/\bcta\s+(?:to|as|:)\s*["“](.+?)["”]/i) ||
-    msg.match(/\bhero\s+(?:cta|button)\s+(?:to|as|:)\s*["“](.+?)["”]/i);
+    msg.match(/\bhero\s+(?:cta|button)\s+(?:to|as|:|say)\s*["“](.+?)["”]/i) ||
+    msg.match(/\bmake\s+(?:the\s+)?hero\s+cta\s+say\s*["“](.+?)["”]/i);
   if (!m) return null;
-  const value = (m[1] || m[2] || "").trim().replace(/^["“]|["”]$/g, "");
+  const value = (m[1] || "").trim().replace(/^["“]|["”]$/g, "");
   if (!value || value.length > 80) return null;
   const lower = msg.toLowerCase();
   let id = "hero.ctaText";
@@ -1021,18 +1047,6 @@ function detectButtonUpdate(msg: string): { id: string; value: string } | null {
   else if (/\bform\b|submit/i.test(lower)) id = "visual.form.submitLabel";
   else if (/\bprimary\b/i.test(lower) && /\bcta\b/i.test(lower)) id = "visual.cta.primaryLabel";
   return { id, value };
-}
-
-function detectFormUpdate(msg: string): { id: string; value: string }[] | null {
-  if (!/\bform\b/i.test(msg)) return null;
-  const out: { id: string; value: string }[] = [];
-  const title = msg.match(/\bform\s+title\s+(?:to|as|:)\s*["“](.+?)["”]/i);
-  if (title) out.push({ id: "visual.form.title", value: title[1] });
-  const submit = msg.match(/\bsubmit\s+(?:button\s+)?(?:to|as|:|label)\s*["“](.+?)["”]/i);
-  if (submit) out.push({ id: "visual.form.submitLabel", value: submit[1] });
-  const rewrite = msg.match(/\b(?:rewrite|set|change)\s+(?:the\s+)?form\s+title\s+to\s+["“](.+?)["”]/i);
-  if (rewrite) out.push({ id: "visual.form.title", value: rewrite[1] });
-  return out.length ? out : null;
 }
 
 function detectSetField(msg: string): { id: string; value: string } | null {

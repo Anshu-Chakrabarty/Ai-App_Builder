@@ -26,9 +26,10 @@ export function detectCardCountRequest(prompt: string): {
 
   // Prefer explicit target count over “there are 4 cards …”
   const makeIt =
-    msg.match(/\bmake\s+(?:it|them)\s+(\d{1,2})\s+cards?\b/) ||
-    msg.match(/\b(?:to|into|show|use|want|need)\s+(\d{1,2})\s+cards?\b/) ||
-    msg.match(/\b(?:expand|grow|resize)\s+(?:to\s+)?(\d{1,2})\s+cards?\b/);
+    msg.match(/\bmake\s+(?:it|them)\s+(\d{1,2})\s+(?:\w+\s+){0,2}cards?\b/) ||
+    msg.match(/\b(?:to|into|show|use|want|need)\s+(\d{1,2})\s+(?:\w+\s+){0,2}cards?\b/) ||
+    msg.match(/\b(?:expand|grow|resize)\s+(?:to\s+)?(\d{1,2})\s+(?:\w+\s+){0,2}cards?\b/) ||
+    msg.match(/\b(\d{1,2})\s+(?:service\s+|feature\s+|pricing\s+)?cards?\b/);
   if (makeIt) {
     count = Number(makeIt[1]);
   } else {

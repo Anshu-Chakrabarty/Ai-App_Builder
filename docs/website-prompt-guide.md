@@ -21,7 +21,9 @@ User prompt
 
 The **Prompt Interpreter** always runs in the middle. It turns any natural-language request into structured actions (`copy_update`, `style_update`, `image_update`, `page_ops`, …) with constraints — so the editor never guesses from raw chat alone.
 
-**Efficiency tip:** Clear prompts (page + section + action) often resolve **locally inside the interpreter** (no Gemini). Ambiguous prompts get a small interpreter LLM call, then a scoped edit.
+**Efficiency tip:** Clear prompts (page + section + action) often resolve **locally inside the interpreter** (no LLM). Ambiguous prompts get a small interpreter LLM call, then a scoped edit.
+
+**Verified paste-ready list:** see [`prompts.md`](./prompts.md) (26 cases checked against live preview HTML).
 
 **Context the interpreter uses**
 
