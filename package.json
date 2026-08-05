@@ -9,7 +9,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "qa:prompts": "tsx scripts/qa-prompts.ts"
   },
   "dependencies": {
     "@google/genai": "^1.52.0",

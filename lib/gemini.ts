@@ -151,13 +151,14 @@ function configForModel(
   return rest;
 }
 
-/** both | openrouter | gemini — default both when OpenRouter key exists */
+/** openrouter | both | gemini — default openrouter when key exists (skip flaky Gemini quota) */
 function llmStrategy(): "both" | "openrouter" | "gemini" {
   const raw = (process.env.LLM_STRATEGY || "").trim().toLowerCase();
   if (raw === "both" || raw === "race" || raw === "parallel") return "both";
   if (raw === "openrouter" || raw === "or") return "openrouter";
   if (raw === "gemini" || raw === "google") return "gemini";
-  return hasOpenRouterKey() ? "both" : "gemini";
+  // Prefer OpenRouter-only when configured — more reliable than racing Gemini free-tier
+  return hasOpenRouterKey() ? "openrouter" : "gemini";
 }
 
 async function generateViaGemini(
@@ -257,6 +258,12 @@ export async function generateContentResilient(
       console.info("LLM via OpenRouter");
       return { text: r.text, provider: r.provider };
     } catch (err) {
+      const allowGeminiFallback = process.env.LLM_GEMINI_FALLBACK === "1";
+      if (!allowGeminiFallback) {
+        throw err instanceof Error
+          ? err
+          : new Error(String(err ?? "OpenRouter failed"));
+      }
       console.warn(
         "OpenRouter failed, falling back to Gemini:",
         errMessage(err).slice(0, 300)

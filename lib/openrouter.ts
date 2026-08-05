@@ -19,7 +19,7 @@ export function openRouterModel(): string {
 }
 
 /**
- * Call OpenRouter. Uses chat/completions so we can race it with Gemini.
+ * Call OpenRouter. Uses chat/completions so we can race/replace Gemini.
  */
 export async function generateViaOpenRouter(
   args: OpenRouterGenerateArgs
@@ -33,9 +33,16 @@ export async function generateViaOpenRouter(
       ? args.config.maxOutputTokens
       : Number(process.env.OPENROUTER_MAX_TOKENS) || 4096;
 
+  const messages: Array<{ role: string; content: string }> = [];
+  const system = args.config?.systemInstruction;
+  if (typeof system === "string" && system.trim()) {
+    messages.push({ role: "system", content: system });
+  }
+  messages.push({ role: "user", content: args.contents });
+
   const body: Record<string, unknown> = {
     model,
-    messages: [{ role: "user", content: args.contents }],
+    messages,
     max_tokens: maxTokens,
     temperature:
       typeof args.config?.temperature === "number" ? args.config.temperature : 0.4,
@@ -62,9 +69,7 @@ export async function generateViaOpenRouter(
 
   const raw = await res.text();
   if (!res.ok) {
-    throw new Error(
-      `OpenRouter ${model} ${res.status}: ${raw.slice(0, 400)}`
-    );
+    throw new Error(`OpenRouter ${model} ${res.status}: ${raw.slice(0, 400)}`);
   }
 
   let data: any;
@@ -75,9 +80,7 @@ export async function generateViaOpenRouter(
   }
 
   const text =
-    data?.choices?.[0]?.message?.content ??
-    data?.choices?.[0]?.text ??
-    null;
+    data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? null;
 
   if (!text || (typeof text === "string" && !text.trim())) {
     throw new Error(

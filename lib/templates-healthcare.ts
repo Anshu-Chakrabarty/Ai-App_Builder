@@ -338,7 +338,26 @@ export const HEALTHCARE_TEMPLATES: Template[] = [
               ${c.stats.map((s: any) => `<div style="padding:22px;background:#fff;border:1px solid #d9e4ec;border-radius:12px"><div style="font-size:28px;font-weight:800;color:${accent};font-family:${DISPLAY}">${esc(s.value)}</div><div style="color:#5a6b78;font-size:14px;margin-top:4px">${esc(s.label)}</div></div>`).join("")}
             </div>
           </div>
-        </section>`;
+        </section>
+        ${
+          Array.isArray(c.services) && c.services.length
+            ? `<section class="wrap services" style="padding-top:40px">
+          <div class="eyebrow">Care pathways</div><h2>Services at a glance</h2>
+          ${renderServiceCards(c.services)}
+        </section>`
+            : Array.isArray(c.departments) && c.departments.length
+              ? `<section class="wrap services" style="padding-top:40px">
+          <div class="eyebrow">Care pathways</div><h2>Services at a glance</h2>
+          ${renderServiceCards(
+            c.departments.map((d: any) => ({
+              name: d.name,
+              desc: d.desc,
+              image: d.image,
+            }))
+          )}
+        </section>`
+              : ""
+        }`;
       const departments = () => `
         <section class="wrap"><div class="eyebrow">Departments</div><h2 style="font-family:${DISPLAY}">Find the right care</h2>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:32px">

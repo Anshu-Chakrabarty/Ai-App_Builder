@@ -41,6 +41,85 @@ export async function POST(req: Request) {
     const accent = project.theme?.primary || "#7C3AED";
     const idea = [project.idea, project.requirementsText].filter(Boolean).join("\n\n");
 
+    // ——— Soft regenerate for existing Studio sites ———
+    // Preserve config / bound HTML / Studio edits; re-render with current template code.
+    const existingConfig = project.site?.config;
+    const forceFull = body.forceFull === true || body.mode === "full";
+    if (
+      !forceFull &&
+      existingConfig?.content &&
+      Object.keys(existingConfig.content).length > 0 &&
+      (project.site?.html || project.site?.boundPages)
+    ) {
+      try {
+        const template = pickSiteTemplate(
+          idea,
+          project.siteTemplateId || project.templateId
+        );
+        const pages =
+          existingConfig.pages?.length
+            ? existingConfig.pages
+            : project.site?.pages || [];
+        const refreshed = analyzeTemplate({
+          template,
+          pages,
+          content: existingConfig.content,
+          brandName: existingConfig.brandName || brandName,
+          accent: existingConfig.accent || accent,
+          idea,
+        });
+        const config = {
+          ...refreshed.config,
+          ...existingConfig,
+          content: existingConfig.content,
+          pages,
+          brandName: existingConfig.brandName || brandName,
+          accent: existingConfig.accent || accent,
+          layout: existingConfig.layout || refreshed.config.layout,
+          styles: existingConfig.styles || refreshed.config.styles,
+          media: existingConfig.media || refreshed.config.media,
+          sectionState: existingConfig.sectionState,
+          customPages: existingConfig.customPages,
+          updatedAt: Date.now(),
+        };
+        const html = renderSiteFromConfig({
+          template,
+          manifest: project.site?.manifest || refreshed.manifest,
+          config,
+          knowledge: project.site?.knowledge || refreshed.knowledge,
+          boundPages: project.site?.boundPages,
+          assets: project.site?.assets,
+        });
+        const artifacts = {
+          githubActions: buildGithubActionsYaml(project),
+          dockerfile: buildDockerfile(project),
+          readme: buildReadme(project),
+        };
+        return NextResponse.json({
+          siteTemplateId: template.id,
+          templateName: template.name,
+          copy: config.content,
+          pages: config.pages,
+          html,
+          manifest: project.site?.manifest || refreshed.manifest,
+          config,
+          knowledge: project.site?.knowledge || refreshed.knowledge,
+          boundPages: project.site?.boundPages,
+          assets: project.site?.assets,
+          usedFallback: false,
+          artifacts,
+          source: project.site?.source || "template",
+          message:
+            "Site re-rendered from your existing Studio config (edits preserved). Use Full regenerate only if you want a fresh AI rewrite.",
+        });
+      } catch (softErr) {
+        console.warn(
+          "Soft regenerate failed, continuing with full build:",
+          softErr instanceof Error ? softErr.message : softErr
+        );
+      }
+    }
+
     const template = pickSiteTemplate(idea, project.siteTemplateId || project.templateId);
     const briefPages = parsePagesFromBrief(idea);
     const featurePages = pagesFromFeatures(

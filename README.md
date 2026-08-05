@@ -53,9 +53,10 @@ Open [http://localhost:3000](http://localhost:3000).
 |----------|----------|-------------|
 | `GEMINI_API_KEY` | **Yes** | Google AI Studio / Gemini API key for generation & Studio edits |
 | `GEMINI_MODEL` | No | Override default Gemini model id |
-| `OPENROUTER_API_KEY` | No | OpenRouter key — races with Gemini when `LLM_STRATEGY=both` |
+| `OPENROUTER_API_KEY` | No* | OpenRouter key — **preferred** LLM when set |
 | `OPENROUTER_MODEL` | No | OpenRouter model id (default `openai/gpt-4o`) |
-| `LLM_STRATEGY` | No | `both` (race), `openrouter`, or `gemini` |
+| `LLM_STRATEGY` | No | `openrouter` (default when key set), `both`, or `gemini` |
+| `LLM_GEMINI_FALLBACK` | No | Set `1` to fall back to Gemini if OpenRouter fails |
 | `GITHUB_TOKEN` | No | Higher rate limits for live Vercel/GitHub template catalogs |
 | `ENVATO_PERSONAL_TOKEN` | No | ThemeForest catalog (optional marketplace) |
 

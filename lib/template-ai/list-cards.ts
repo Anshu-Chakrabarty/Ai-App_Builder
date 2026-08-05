@@ -70,7 +70,7 @@ export function detectCardCountRequest(prompt: string): {
   };
 }
 
-/** Which list in config.content to grow (services vs features vs departments). */
+/** Which list in config.content to grow (services, departments, features). */
 export function resolveCardListKey(
   prompt: string,
   target?: { id?: string; label?: string } | null,
@@ -82,17 +82,20 @@ export function resolveCardListKey(
     return "departments";
   }
   if (
-    /service|glance|care pathway|home\.services|home\.highlights/.test(blob) ||
+    /service|glance|care pathway|home\.services|home\.highlights|card/.test(blob) ||
     target?.id === "home.services" ||
     target?.id === "home.highlights"
   ) {
-    // “Services at a glance” is often mis-tagged as highlights
     if (Array.isArray(config?.content?.services)) return "services";
+    // Hospital templates use departments on Home “Services at a glance”
+    if (Array.isArray(config?.content?.departments)) return "departments";
+    return "services";
   }
   if (/feature|home\.features|visual\.features/.test(blob)) {
     return "visual.features.items";
   }
   if (Array.isArray(config?.content?.services)) return "services";
+  if (Array.isArray(config?.content?.departments)) return "departments";
   if (config?.content?.visual?.features?.items) return "visual.features.items";
   return "services";
 }
@@ -208,6 +211,7 @@ function resizeList(
         desc: seed.desc,
         wait: next[0]?.wait || "",
         note: next[0]?.note || "",
+        floor: next[0]?.floor || `Level ${(i % 4) + 1}`,
         ...(wantImages
           ? { image: pickStockImage(prompt + " hospital " + seed.name, "healthcare") }
           : {}),

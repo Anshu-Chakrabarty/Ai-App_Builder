@@ -30,6 +30,10 @@ import {
   type TemplateKnowledge,
   type TemplateManifest,
 } from "@/lib/template-ai";
+import {
+  buildCardListUpdates,
+  detectCardCountRequest,
+} from "@/lib/template-ai/list-cards";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -682,14 +686,48 @@ export async function POST(req: Request) {
       knowledge: incomingKnowledge,
     });
 
-    // Prefer stored config content when present
+    // Prefer stored config content when present (do NOT let stale copy wipe lists)
     if (incomingConfig?.content && Object.keys(incomingConfig.content).length) {
+      const mergedContent = {
+        ...nextCopy,
+        ...incomingConfig.content,
+      };
+      // Keep the longer/fresher card lists
+      for (const key of ["services", "departments", "highlights", "specialists"] as const) {
+        const a = incomingConfig.content?.[key];
+        const b = nextCopy?.[key];
+        if (Array.isArray(a) && Array.isArray(b)) {
+          mergedContent[key] = a.length >= b.length ? a : b;
+        } else if (Array.isArray(a)) {
+          mergedContent[key] = a;
+        }
+      }
+      if (incomingConfig.content?.visual || nextCopy?.visual) {
+        mergedContent.visual = {
+          ...(nextCopy?.visual || {}),
+          ...(incomingConfig.content?.visual || {}),
+          features: {
+            ...(nextCopy?.visual?.features || {}),
+            ...(incomingConfig.content?.visual?.features || {}),
+            items:
+              (incomingConfig.content?.visual?.features?.items?.length || 0) >=
+              (nextCopy?.visual?.features?.items?.length || 0)
+                ? incomingConfig.content?.visual?.features?.items ||
+                  nextCopy?.visual?.features?.items
+                : nextCopy?.visual?.features?.items ||
+                  incomingConfig.content?.visual?.features?.items,
+          },
+        };
+      }
       config = {
         ...incomingConfig,
-        content: { ...incomingConfig.content, ...nextCopy },
+        content: mergedContent,
         pages: currentPages,
         brandName: brand,
         accent: color,
+        layout: incomingConfig.layout || config.layout,
+        styles: incomingConfig.styles || config.styles,
+        media: incomingConfig.media || config.media,
         updatedAt: Date.now(),
       };
     }
@@ -707,7 +745,37 @@ export async function POST(req: Request) {
       images: Array.isArray(incomingImages) ? incomingImages.slice(0, 4) : undefined,
     });
 
-    if (agent.mode === "answer") {
+    // Hard guarantee: card-count / image prompts always mutate list config
+    const cardReq = detectCardCountRequest(msg);
+    let agentUpdates = [...(agent.updates || [])];
+    if (
+      cardReq.count != null ||
+      cardReq.wantImages ||
+      (/\bcards?\b/i.test(msg) && /\b(image|photo|column|grid|align)\b/i.test(msg))
+    ) {
+      const forced = buildCardListUpdates({
+        prompt: msg,
+        config,
+        target: incomingTarget || agent.pipeline?.intent?.target || null,
+      });
+      const hasList = agentUpdates.some(
+        (u) =>
+          u.id === "services" ||
+          u.id === "departments" ||
+          u.id === "visual.features.items" ||
+          u.type === "list"
+      );
+      if (forced.length && !hasList) {
+        agentUpdates = [...forced, ...agentUpdates];
+      } else if (forced.length && hasList) {
+        // Ensure images/columns still land even if list update was partial
+        for (const f of forced) {
+          if (!agentUpdates.some((u) => u.id === f.id)) agentUpdates.push(f);
+        }
+      }
+    }
+
+    if (agent.mode === "answer" && !agentUpdates.length) {
       return NextResponse.json({
         status: "answered",
         copy: configToCopy(config),
@@ -727,13 +795,13 @@ export async function POST(req: Request) {
       });
     }
 
-    let nextConfig = applyUpdatesToConfig(config, agent.updates || [], manifest);
+    let nextConfig = applyUpdatesToConfig(config, agentUpdates, manifest);
     if (agent.newPages?.length) {
       nextConfig = materializeNewPages(nextConfig, knowledge, agent.newPages);
     }
 
     // Re-analyze editable IDs when pages were added/removed
-    const pageOps = (agent.updates || []).some(
+    const pageOps = agentUpdates.some(
       (u) => u.op === "add_page" || u.op === "remove_page"
     );
     if (agent.newPages?.length || pageOps) {
@@ -755,7 +823,7 @@ export async function POST(req: Request) {
 
     // Prune bound pages for removals
     let nextBoundPages = boundPages;
-    const removed = (agent.updates || []).filter((u) => u.op === "remove_page");
+    const removed = agentUpdates.filter((u) => u.op === "remove_page");
     if (nextBoundPages && removed.length) {
       nextBoundPages = { ...nextBoundPages };
       for (const u of removed) {
@@ -776,9 +844,16 @@ export async function POST(req: Request) {
     });
 
     const ops = [
-      ...(agent.updates || []).map((u) => `${u.op || "set"}:${u.id}`),
+      ...agentUpdates.map((u) => `${u.op || "set"}:${u.id}`),
       ...(agent.newPages || []).map((p) => `add_page:${p.key}`),
     ];
+
+    const cardNote =
+      cardReq.count != null
+        ? ` Updated cards to ${cardReq.count}${cardReq.wantImages ? " with images" : ""}.`
+        : cardReq.wantImages
+          ? " Added images to cards."
+          : "";
 
     return NextResponse.json({
       status: "updated",
@@ -790,8 +865,8 @@ export async function POST(req: Request) {
       knowledge,
       boundPages: nextBoundPages,
       assets,
-      assistantMessage: agent.assistantMessage,
-      updates: agent.updates,
+      assistantMessage: (agent.assistantMessage || "Updated.") + cardNote,
+      updates: agentUpdates,
       pipeline: "pipeline" in agent ? agent.pipeline : undefined,
       newPageKey:
         removed.length

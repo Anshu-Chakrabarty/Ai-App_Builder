@@ -6,6 +6,7 @@ import { configToCopy } from "./config";
 import { getPageDesign } from "@/lib/page-designs";
 import { schemaForCustomDesign, renderCustomDesign } from "@/lib/custom-designs";
 import { renderBoundPages } from "./render-bound";
+import { patchCardSectionsInSiteHtml } from "./html-card-patch";
 
 /**
  * Render all pages. Template render functions stay unchanged —
@@ -21,6 +22,8 @@ export function renderSiteFromConfig(args: {
   assets?: Record<string, string>;
 }): Record<string, string> {
   const { template, config, knowledge, boundPages, assets } = args;
+
+  let html: Record<string, string>;
 
   if (boundPages && Object.keys(boundPages).length > 0) {
     const rendered = renderBoundPages({ boundPages, config, knowledge, assets });
@@ -64,58 +67,59 @@ export function renderSiteFromConfig(args: {
         }
       }
     }
-    return rendered;
-  }
+    html = rendered;
+  } else {
+    const copy = configToCopy(config);
+    const pages = config.pages;
+    html = {};
 
-  const copy = configToCopy(config);
-  const pages = config.pages;
-  const html: Record<string, string> = {};
+    for (const page of pages) {
+      const custom = config.customPages?.[page.key];
+      if (custom && !page.designId) {
+        html[page.slug] = renderCustomAssembledPage({
+          template,
+          config,
+          pageKey: page.key,
+          label: page.label,
+          custom,
+        });
+        continue;
+      }
 
-  for (const page of pages) {
-    const custom = config.customPages?.[page.key];
-    if (custom && !page.designId) {
-      html[page.slug] = renderCustomAssembledPage({
-        template,
-        config,
-        pageKey: page.key,
-        label: page.label,
-        custom,
-      });
-      continue;
-    }
-
-    try {
-      html[page.slug] = renderPage(
-        template,
-        copy,
-        page.key,
-        config.accent,
-        config.brandName,
-        pages
-      );
-    } catch (err) {
-      console.error(`renderSiteFromConfig failed for page "${page.key}":`, err);
       try {
-        // Last resort: template fallback only (ignore corrupted AI content shape)
         html[page.slug] = renderPage(
           template,
-          { ...(template.fallback || {}), __meta: copy.__meta, visual: copy.visual },
+          copy,
           page.key,
           config.accent,
           config.brandName,
           pages
         );
-      } catch (err2) {
-        console.error(`renderSiteFromConfig fallback also failed for "${page.key}":`, err2);
-        html[page.slug] = `<!doctype html><html><body style="font-family:system-ui;padding:40px">
+      } catch (err) {
+        console.error(`renderSiteFromConfig failed for page "${page.key}":`, err);
+        try {
+          // Last resort: template fallback only (ignore corrupted AI content shape)
+          html[page.slug] = renderPage(
+            template,
+            { ...(template.fallback || {}), __meta: copy.__meta, visual: copy.visual },
+            page.key,
+            config.accent,
+            config.brandName,
+            pages
+          );
+        } catch (err2) {
+          console.error(`renderSiteFromConfig fallback also failed for "${page.key}":`, err2);
+          html[page.slug] = `<!doctype html><html><body style="font-family:system-ui;padding:40px">
 <h1>${page.label}</h1>
 <p>This page could not be rendered. Click <strong>Regenerate Site</strong> to rebuild it.</p>
 </body></html>`;
+        }
       }
     }
   }
 
-  return html;
+  // Guarantee card/list edits appear in preview (native + bound + hospital homes)
+  return patchCardSectionsInSiteHtml(html, config);
 }
 
 function renderCustomAssembledPage(args: {

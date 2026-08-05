@@ -41,6 +41,7 @@ function baseCSS(
     galleryVariant?: "featured" | "equal";
     featureColumns?: number;
     blocksColumns?: number;
+    serviceColumns?: number;
   } | null,
   styles?: SiteStyles | null
 ): string {
