@@ -318,6 +318,19 @@ export function analyzeTemplate(args: {
   ensureSection(sections, "home", "CTA band", "cta");
   ensureSection(sections, "home", "Lead form", "form");
   ensureSection(sections, "home", "Custom blocks", "blocks");
+  // Services / card grid — always register so name/keyword prompts can target it
+  if (
+    Array.isArray((root as any).services) ||
+    Array.isArray((content as any).services) ||
+    Array.isArray((root as any).departments)
+  ) {
+    ensureSection(sections, "home", "Services at a glance", "services");
+    const svc = sections.get("home.services");
+    if (svc) {
+      svc.name = "Services at a glance";
+      svc.editableFields = Array.from(new Set([...(svc.editableFields || []), "services"]));
+    }
+  }
   for (const f of [
     { id: "visual.cta.title", type: "text" as const, label: "CTA title", path: "visual.cta.title", sectionId: "home.cta" },
     { id: "visual.cta.blurb", type: "textarea" as const, label: "CTA blurb", path: "visual.cta.blurb", sectionId: "home.cta" },

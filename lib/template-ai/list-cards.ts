@@ -11,44 +11,117 @@ const SERVICE_SEEDS = [
   { name: "Care navigation", desc: "Guidance from intake through recovery." },
 ];
 
+const WORD_NUM: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+};
+
+function parseCountToken(raw: string): number | null {
+  const t = String(raw || "")
+    .trim()
+    .toLowerCase();
+  if (/^\d{1,2}$/.test(t)) return Number(t);
+  if (WORD_NUM[t] != null) return WORD_NUM[t];
+  return null;
+}
+
+/** True when user wants to remove/shrink cards — never hide the whole section. */
+export function isCardRemoveOrResizePrompt(prompt: string): boolean {
+  const msg = (prompt || "").toLowerCase();
+  if (!/\bcards?\b/.test(msg)) return false;
+  return (
+    /\b(remove|delete|drop|trim|cut)\s+(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+){0,3}cards?\b/.test(
+      msg
+    ) ||
+    /\b(remove|delete|drop)\s+(?:\w+\s+){0,2}cards?\b/.test(msg) ||
+    /\b(keep|leave|only)\s+(\d{1,2}|one|two|three|four|five|six)\s+cards?\b/.test(msg) ||
+    /\breduce\s+(?:to\s+)?(\d{1,2}|one|two|three|four|five|six)\s+cards?\b/.test(msg) ||
+    /\bmake\s+(?:it|them)\s+(\d{1,2}|one|two|three|four|five|six)\s+cards?\b/.test(msg)
+  );
+}
+
 /**
- * Detect “make it 6 cards”, “add 2 more cards”, “3x3 with 6 cards”.
+ * Detect “make it 6 cards”, “remove 3 cards”, “keep only 3 cards”, etc.
+ * Pass currentLength so “remove 3” → current - 3.
  */
-export function detectCardCountRequest(prompt: string): {
+export function detectCardCountRequest(
+  prompt: string,
+  currentLength?: number
+): {
   count: number | null;
   columns: number | null;
   wantImages: boolean;
   wantText: boolean;
+  removeDelta: number | null;
 } {
   const msg = (prompt || "").toLowerCase();
   let count: number | null = null;
   let columns: number | null = null;
+  let removeDelta: number | null = null;
 
-  // Prefer explicit target count over “there are 4 cards …”
-  const makeIt =
-    msg.match(/\bmake\s+(?:it|them)\s+(\d{1,2})\s+(?:\w+\s+){0,2}cards?\b/) ||
-    msg.match(/\b(?:to|into|show|use|want|need)\s+(\d{1,2})\s+(?:\w+\s+){0,2}cards?\b/) ||
-    msg.match(/\b(?:expand|grow|resize)\s+(?:to\s+)?(\d{1,2})\s+(?:\w+\s+){0,2}cards?\b/) ||
-    msg.match(/\b(\d{1,2})\s+(?:service\s+|feature\s+|pricing\s+)?cards?\b/);
-  if (makeIt) {
-    count = Number(makeIt[1]);
-  } else {
-    const all = [...msg.matchAll(/\b(\d{1,2})\s+cards?\b/g)];
-    if (all.length === 1) {
-      // Single mention — only treat as target if not “there are / currently N”
-      if (!/\b(there\s+are|currently|have|has|only)\s+\d{1,2}\s+cards?\b/.test(msg)) {
-        count = Number(all[0][1]);
+  // “remove 3 cards” / “delete three cards” → shrink by N (do NOT hide section)
+  const removeN = msg.match(
+    /\b(?:remove|delete|drop|trim|cut)\s+(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+){0,3}cards?\b/
+  );
+  if (removeN) {
+    removeDelta = parseCountToken(removeN[1]);
+    if (removeDelta != null) {
+      const cur = typeof currentLength === "number" ? currentLength : null;
+      if (cur != null) {
+        count = Math.max(1, cur - removeDelta);
       }
-    } else if (all.length > 1) {
-      // “4 cards … 6 cards” → last number is the ask
-      count = Number(all[all.length - 1][1]);
+      // If current unknown, buildCardListUpdates will resolve with list length
     }
   }
 
-  const addMore = msg.match(/\badd\s+(\d{1,2})\s+more\s+cards?\b/);
+  // “keep only 3 cards” / “leave 3 cards” / “reduce to 3 cards”
+  if (count == null) {
+    const keep = msg.match(
+      /\b(?:keep|leave|only)\s+(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+){0,2}cards?\b/
+    ) ||
+      msg.match(
+        /\breduce\s+(?:to\s+)?(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+){0,2}cards?\b/
+      );
+    if (keep) count = parseCountToken(keep[1]);
+  }
+
+  // Prefer explicit target count over “there are 4 cards …”
+  if (count == null) {
+    const makeIt =
+      msg.match(/\bmake\s+(?:it|them)\s+(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+){0,2}cards?\b/) ||
+      msg.match(/\b(?:to|into|show|use|want|need)\s+(\d{1,2})\s+(?:\w+\s+){0,2}cards?\b/) ||
+      msg.match(/\b(?:expand|grow|resize)\s+(?:to\s+)?(\d{1,2})\s+(?:\w+\s+){0,2}cards?\b/) ||
+      msg.match(/\b(\d{1,2})\s+(?:service\s+|feature\s+|pricing\s+)?cards?\b/);
+    if (makeIt) {
+      count = parseCountToken(makeIt[1]);
+    } else if (removeDelta == null) {
+      const all = [...msg.matchAll(/\b(\d{1,2})\s+cards?\b/g)];
+      if (all.length === 1) {
+        if (!/\b(there\s+are|currently|have|has|only)\s+\d{1,2}\s+cards?\b/.test(msg)) {
+          count = Number(all[0][1]);
+        }
+      } else if (all.length > 1) {
+        count = Number(all[all.length - 1][1]);
+      }
+    }
+  }
+
+  const addMore = msg.match(/\badd\s+(\d{1,2}|one|two|three|four|five|six)\s+more\s+cards?\b/);
   if (addMore && count == null) {
-    // Caller still needs current length; mark as relative via negative sentinel? Better leave null
-    // and let build expand: we encode desired delta by reading separately
+    const n = parseCountToken(addMore[1]);
+    if (n != null && typeof currentLength === "number") {
+      count = Math.min(12, currentLength + n);
+    }
   }
 
   const grid = msg.match(/\b(\d)\s*[x×\/]\s*(\d)\b|\b(\d)\s*by\s*(\d)\b/i);
@@ -57,7 +130,7 @@ export function detectCardCountRequest(prompt: string): {
     columns = a;
   }
 
-  const colOnly = msg.match(/\b(\d)\s*col(?:umn)?s?\b/);
+  const colOnly = msg.match(/\b(\d)[- ]?col(?:umn)?s?\b/);
   if (colOnly) columns = Number(colOnly[1]);
 
   if (count != null) count = Math.min(12, Math.max(1, count));
@@ -68,6 +141,7 @@ export function detectCardCountRequest(prompt: string): {
     columns,
     wantImages: /\b(image|images|photo|photos|picture|pictures|imagery)\b/.test(msg),
     wantText: /\b(text|copy|title|desc|description|modify|rewrite|update)\b/.test(msg),
+    removeDelta,
   };
 }
 
@@ -109,15 +183,21 @@ export function buildCardListUpdates(args: {
   config: SiteConfig;
   target?: { id?: string; label?: string } | null;
 }): ConfigUpdate[] {
-  const req = detectCardCountRequest(args.prompt);
-  if (req.count == null && !req.wantImages && req.columns == null) return [];
-
   const listKey = resolveCardListKey(args.prompt, args.target, args.config);
-  const updates: ConfigUpdate[] = [];
-
   const current = getList(args.config, listKey);
-  const count = req.count ?? Math.max(current.length, 4);
-  const next = resizeList(current, count, listKey, args.prompt, req.wantImages);
+  const req = detectCardCountRequest(args.prompt, current.length);
+
+  // Resolve “remove 3 cards” when count wasn't computable without list length
+  let count = req.count;
+  if (count == null && req.removeDelta != null) {
+    count = Math.max(1, current.length - req.removeDelta);
+  }
+
+  if (count == null && !req.wantImages && req.columns == null) return [];
+
+  const updates: ConfigUpdate[] = [];
+  const finalCount = count ?? Math.max(current.length, 4);
+  const next = resizeList(current, finalCount, listKey, args.prompt, req.wantImages);
 
   if (listKey === "visual.features.items") {
     updates.push({
@@ -158,7 +238,7 @@ export function buildCardListUpdates(args: {
         op: "set",
       });
     }
-  } else if (count >= 6) {
+  } else if (finalCount >= 6) {
     // Sensible default: 3 columns for 6 cards
     const cols = 3;
     if (listKey === "visual.features.items") {

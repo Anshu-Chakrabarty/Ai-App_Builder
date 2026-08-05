@@ -8,6 +8,7 @@ import {
   resolveGalleryCardIndex,
   resolveImageTargetId,
   resolveLayoutUpdates,
+  resolveSectionTargetFromPrompt,
   detectColumnCount,
   type AgentHistoryTurn,
   type AgentWorkEntry,
@@ -15,6 +16,7 @@ import {
 import { galleryLabelsFor } from "@/lib/site-media";
 import { resolvePageToDelete } from "@/lib/page-request";
 import { resolveStyleUpdates } from "@/lib/site-styles";
+import { buildCardListUpdates, isCardRemoveOrResizePrompt } from "../list-cards";
 import type {
   AiUpdatePayload,
   ConfigUpdate,
@@ -329,9 +331,17 @@ function keyFromLoose(s: string): string {
 
 /** Deterministic fallback when Gemini fails */
 export function heuristicEdit(args: EditArgs): AiUpdatePayload {
-  const { prompt, intent, config, knowledge, activePageKey, images } = args;
+  const { prompt, intent, config, knowledge, activePageKey, images, manifest } = args;
   const msg = prompt.toLowerCase();
-  const target = intent.target;
+  let target = intent.target;
+  if (!target?.id) {
+    target =
+      resolveSectionTargetFromPrompt(prompt, {
+        manifest,
+        config,
+        activePageKey,
+      }) || null;
+  }
 
   if (images?.length && !isLayoutIntent(prompt)) {
     const imageId = resolveImageTargetId(prompt, target, {
@@ -393,7 +403,31 @@ export function heuristicEdit(args: EditArgs): AiUpdatePayload {
   }
 
   if (target?.id && prompt.trim() && !/\b(delete|remove|hide)\b.*\b(page|section)\b/i.test(prompt)) {
-    if (target.kind === "section" && /\b(hide|remove|delete)\b/i.test(msg)) {
+    // Card removals must resize the list — never hide the selected section
+    if (
+      target.kind === "section" &&
+      /\b(hide|remove|delete)\b/i.test(msg) &&
+      (isCardRemoveOrResizePrompt(prompt) || /\bcards?\b/i.test(msg))
+    ) {
+      const cardUpdates = buildCardListUpdates({ prompt, config, target });
+      if (cardUpdates.length) {
+        const list = cardUpdates.find((u) => u.type === "list");
+        const n = Array.isArray(list?.value) ? list!.value.length : null;
+        return {
+          mode: "mutate",
+          assistantMessage:
+            n != null
+              ? `Updated cards — now ${n} (section kept).`
+              : "Updated the card list (section kept).",
+          updates: cardUpdates,
+        };
+      }
+    }
+    if (
+      target.kind === "section" &&
+      /\b(hide|remove|delete)\b/i.test(msg) &&
+      !/\bcards?\b/i.test(msg)
+    ) {
       return {
         mode: "mutate",
         assistantMessage: `Hid section ${target.id}.`,
@@ -429,6 +463,22 @@ export function heuristicEdit(args: EditArgs): AiUpdatePayload {
   }
 
   if (/\b(delete|remove|drop|get rid of)\b/i.test(prompt)) {
+    // “remove 3 cards” → resize list, never hide the whole section
+    if (isCardRemoveOrResizePrompt(prompt) || /\bcards?\b/i.test(prompt)) {
+      const cardUpdates = buildCardListUpdates({ prompt, config, target });
+      if (cardUpdates.length) {
+        const list = cardUpdates.find((u) => u.type === "list");
+        const n = Array.isArray(list?.value) ? list!.value.length : null;
+        return {
+          mode: "mutate",
+          assistantMessage:
+            n != null
+              ? `Updated cards — now ${n} (section kept).`
+              : "Updated the card list (section kept).",
+          updates: cardUpdates,
+        };
+      }
+    }
     let del = resolvePageToDelete(prompt, config.pages);
     if (!del && /\b(this|current)\s+page\b/i.test(prompt) && activePageKey !== "home") {
       const p = config.pages.find((x) => x.key === activePageKey);
@@ -441,7 +491,13 @@ export function heuristicEdit(args: EditArgs): AiUpdatePayload {
         updates: [{ type: "page", id: del.key, op: "remove_page" }],
       };
     }
-    if (target?.kind === "section" && target.id) {
+    // Only hide section when user clearly means the section itself (not cards)
+    if (
+      target?.kind === "section" &&
+      target.id &&
+      /\b(section|block|hero|gallery|features|split|cta|form)\b/i.test(prompt) &&
+      !/\bcards?\b/i.test(prompt)
+    ) {
       return {
         mode: "mutate",
         assistantMessage: `Hid section ${target.id}.`,

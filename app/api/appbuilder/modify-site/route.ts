@@ -33,6 +33,7 @@ import {
 import {
   buildCardListUpdates,
   detectCardCountRequest,
+  isCardRemoveOrResizePrompt,
 } from "@/lib/template-ai/list-cards";
 
 export const runtime = "nodejs";
@@ -745,13 +746,21 @@ export async function POST(req: Request) {
       images: Array.isArray(incomingImages) ? incomingImages.slice(0, 4) : undefined,
     });
 
-    // Hard guarantee: card-count / image prompts always mutate list config
+    // Hard guarantee: card-count / remove-cards / image prompts always mutate list config
     const cardReq = detectCardCountRequest(msg);
     let agentUpdates = [...(agent.updates || [])];
+    // Strip accidental hide_section when user asked to remove cards
+    if (isCardRemoveOrResizePrompt(msg) || (/\bcards?\b/i.test(msg) && /\b(remove|delete)\b/i.test(msg))) {
+      agentUpdates = agentUpdates.filter(
+        (u) => !(u.op === "hide_section" || (u.type === "section" && u.value === false))
+      );
+    }
     if (
       (cardReq.count != null ||
+        cardReq.removeDelta != null ||
+        isCardRemoveOrResizePrompt(msg) ||
         cardReq.wantImages ||
-        (/\bcards?\b/i.test(msg) && /\b(image|photo|column|grid|align)\b/i.test(msg))) &&
+        (/\bcards?\b/i.test(msg) && /\b(image|photo|column|grid|align|remove|delete)\b/i.test(msg))) &&
       !/\bgallery\b/i.test(msg)
     ) {
       const forced = buildCardListUpdates({
@@ -769,10 +778,11 @@ export async function POST(req: Request) {
       if (forced.length && !hasList) {
         agentUpdates = [...forced, ...agentUpdates];
       } else if (forced.length && hasList) {
-        // Ensure images/columns still land even if list update was partial
-        for (const f of forced) {
-          if (!agentUpdates.some((u) => u.id === f.id)) agentUpdates.push(f);
-        }
+        // Prefer forced list resize over stale list updates
+        agentUpdates = [
+          ...forced,
+          ...agentUpdates.filter((u) => !forced.some((f) => f.id === u.id)),
+        ];
       }
     }
 

@@ -6,12 +6,13 @@ import {
   inferTargetFromMemory,
   resolveGalleryCardIndex,
   resolveImageTargetId,
+  resolveSectionTargetFromPrompt,
   type AgentHistoryTurn,
   type AgentWorkEntry,
 } from "../agent-helpers";
 import { galleryLabelsFor } from "@/lib/site-media";
 import { isStyleIntent } from "@/lib/site-styles";
-import type { SiteConfig } from "../types";
+import type { SiteConfig, TemplateManifest } from "../types";
 import type { ContinuityMode, IntentAction, IntentKind, IntentPlan, IntentScope } from "./types";
 
 export type UnderstandArgs = {
@@ -22,6 +23,7 @@ export type UnderstandArgs = {
   workLog?: AgentWorkEntry[];
   target?: { id: string; kind?: string; label?: string } | null;
   images?: string[];
+  manifest?: TemplateManifest | null;
 };
 
 /**
@@ -39,10 +41,20 @@ export function understandIntent(args: UnderstandArgs): IntentPlan {
   else if (isNewTopicPrompt(msg)) continuity = "new-topic";
 
   let target = rawTarget;
-  if (!target && continuity === "follow-up") {
+  // Name/keyword in the prompt → section (works without Studio selection)
+  const namedSection =
+    !rawTarget
+      ? resolveSectionTargetFromPrompt(msg, {
+          manifest: args.manifest,
+          config,
+          activePageKey: args.activePageKey,
+        })
+      : null;
+  if (namedSection) {
+    target = namedSection;
+  } else if (!target && continuity === "follow-up") {
     target = inferTargetFromMemory(history, workLog);
-  }
-  if (target && continuity === "new-topic" && !rawTarget) {
+  } else if (target && continuity === "new-topic" && !rawTarget) {
     target = null;
   }
 
@@ -76,6 +88,9 @@ export function understandIntent(args: UnderstandArgs): IntentPlan {
   });
 
   const notes: string[] = [];
+  if (namedSection?.id) {
+    notes.push(`Named section from prompt: ${namedSection.id} (“${namedSection.label}”)`);
+  }
   if (continuity === "follow-up" && target?.id) {
     notes.push(`Follow-up: keep editing ${target.id}`);
   }
@@ -144,7 +159,18 @@ function detectActions(
   if (/\b(delete|remove|drop)\b.*\bpage\b|\bpage\b.*\b(delete|remove)\b/i.test(msg)) {
     actions.push("page-remove");
   }
-  if (/\b(hide)\b.*\b(section|block|hero|gallery|features)\b/i.test(msg)) {
+  if (
+    /\b(hide)\b.*\b(section|block|hero|gallery|features|services|split|cta|form|banner)\b/i.test(msg) &&
+    !/\bcards?\b/i.test(msg)
+  ) {
+    actions.push("hide-section");
+  }
+  if (
+    /\b(hide|remove)\b/i.test(msg) &&
+    /\b(services?\s+at\s+a\s+glance|care\s+pathways)\b/i.test(msg) &&
+    !/\bcards?\b/i.test(msg) &&
+    !actions.includes("hide-section")
+  ) {
     actions.push("hide-section");
   }
   if (/\b(show|unhide|reveal)\b.*\b(section|block)\b/i.test(msg)) {

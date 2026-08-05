@@ -8,7 +8,7 @@ import { applyUpdatesToConfig } from "../lib/template-ai/config";
 import { renderSiteFromConfig } from "../lib/template-ai/render-site";
 import { understandIntent } from "../lib/template-ai/agents/understand";
 import { interpretPrompt } from "../lib/template-ai/agents/interpreter";
-import { buildCardListUpdates, detectCardCountRequest } from "../lib/template-ai/list-cards";
+import { buildCardListUpdates, detectCardCountRequest, isCardRemoveOrResizePrompt } from "../lib/template-ai/list-cards";
 import type { ConfigUpdate, SiteConfig } from "../lib/template-ai/types";
 
 type Expect = {
@@ -311,6 +311,18 @@ const CASES: Case[] = [
     },
   },
   {
+    id: "cards-remove-3-from-6",
+    category: "Cards",
+    prompt: "remove three cards from this section",
+    target: { id: "home.services", kind: "section", label: "Services at a glance" },
+    expect: {
+      config: [{ path: "content.services", minLen: 3 }],
+      htmlCount: [{ re: /class="service-card"/g, exact: 3 }],
+      htmlIncludes: ["Services at a glance"],
+      htmlExcludes: [], // section must remain visible — checked via includes
+    },
+  },
+  {
     id: "cards-reduce-to-3",
     category: "Cards",
     prompt: "make it 3 cards - Services at a glance",
@@ -318,6 +330,56 @@ const CASES: Case[] = [
     expect: {
       config: [{ path: "content.services", minLen: 3 }],
       htmlCount: [{ re: /class="service-card"/g, exact: 3 }],
+    },
+  },
+  // ——— Named section (no Studio selection) ———
+  {
+    id: "named-cards-remove-no-select",
+    category: "Named",
+    prompt: "remove three cards from Services at a glance",
+    target: null,
+    expect: {
+      config: [{ path: "content.services", minLen: 3 }],
+      htmlCount: [{ re: /class="service-card"/g, exact: 3 }],
+      htmlIncludes: ["Services at a glance"],
+    },
+  },
+  {
+    id: "named-cards-6-no-select",
+    category: "Named",
+    prompt: "make it 6 cards with images - Services at a glance",
+    target: null,
+    expect: {
+      config: [{ path: "content.services", minLen: 6 }],
+      htmlCount: [{ re: /class="service-card"/g, min: 6 }],
+    },
+  },
+  {
+    id: "named-layout-services-no-select",
+    category: "Named",
+    prompt: "Align Services at a glance into 3 columns",
+    target: null,
+    expect: {
+      config: [{ path: "layout.serviceColumns", equals: 3 }],
+    },
+  },
+  {
+    id: "named-hide-gallery-no-select",
+    category: "Named",
+    prompt: "hide the gallery section",
+    target: null,
+    expect: {
+      config: [{ path: "sectionState.home.gallery.visible", equals: false }],
+    },
+  },
+  {
+    id: "named-copy-hero-no-select",
+    category: "Named",
+    prompt: 'Change the hero title to "Named Hero Works"',
+    target: null,
+    expect: {
+      config: [{ path: "content.hero.title", includes: "Named Hero Works" }],
+      htmlIncludes: ["Named Hero Works"],
     },
   },
 ];
@@ -337,6 +399,7 @@ function applyPrompt(
     activePageKey: "home",
     target: c.target || null,
     images: c.images,
+    manifest,
   });
   const inst = interpretPrompt({
     prompt: c.prompt,
@@ -347,21 +410,35 @@ function applyPrompt(
     images: c.images,
   });
 
+  const effectiveTarget = c.target || intent.target || inst.target || null;
+
   let updates = [...(inst.resolvedUpdates || [])];
   const cardReq = detectCardCountRequest(c.prompt);
   if (
     cardReq.count != null ||
+    cardReq.removeDelta != null ||
+    isCardRemoveOrResizePrompt?.(c.prompt) ||
     cardReq.wantImages ||
-    (/\bcards?\b/i.test(c.prompt) && /\b(image|photo|column|grid|align)\b/i.test(c.prompt))
+    (/\bcards?\b/i.test(c.prompt) && /\b(image|photo|column|grid|align|remove|delete)\b/i.test(c.prompt))
   ) {
     if (!/\bgallery\b/i.test(c.prompt)) {
       const forced = buildCardListUpdates({
         prompt: c.prompt,
         config,
-        target: c.target,
+        target: effectiveTarget,
       });
       for (const f of forced) {
         if (!updates.some((u) => u.id === f.id)) updates.push(f);
+      }
+      // Prefer forced list over hide_section
+      updates = updates.filter(
+        (u) => !(u.op === "hide_section" || (u.type === "section" && u.value === false))
+      );
+      if (forced.length) {
+        updates = [
+          ...forced,
+          ...updates.filter((u) => !forced.some((f) => f.id === u.id)),
+        ];
       }
     }
   }
@@ -423,7 +500,14 @@ function checkCase(
         val = next.media?.gallery?.[Number(rest.split(".")[1])];
       } else val = getPath(next.media || {}, rest);
     } else if (chk.path.startsWith("sectionState.")) {
-      val = getPath(next.sectionState || {}, chk.path.slice("sectionState.".length));
+      const rest = chk.path.slice("sectionState.".length);
+      // Keys are dotted ids: sectionState["home.gallery"].visible
+      const m = rest.match(/^(home\.[a-z0-9_-]+)\.(visible|order)$/i);
+      if (m) {
+        val = (next.sectionState || {})[m[1]]?.[m[2] as "visible" | "order"];
+      } else {
+        val = getPath(next.sectionState || {}, rest);
+      }
     }
 
     if (chk.equals !== undefined) {
@@ -485,6 +569,14 @@ async function main() {
         split: STOCK,
         banner: STOCK,
       };
+    }
+    // Seed 6 service cards for remove-N tests
+    if (c.id === "cards-remove-3-from-6" || c.id.startsWith("cards-remove") || c.id === "named-cards-remove-no-select") {
+      start.content.services = Array.from({ length: 6 }).map((_, i) => ({
+        name: `Service ${i + 1}`,
+        desc: `Description ${i + 1}`,
+        image: STOCK,
+      }));
     }
 
     const { next, updates, needsModel } = applyPrompt(start, manifest, c);

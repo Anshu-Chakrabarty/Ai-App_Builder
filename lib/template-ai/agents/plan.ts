@@ -4,6 +4,7 @@ import {
   resolveGalleryCardIndex,
   resolveImageTargetId,
   resolveLayoutUpdates,
+  resolveSectionTargetFromPrompt,
 } from "../agent-helpers";
 import { listEditableCatalog, listSectionMap } from "../config";
 import { galleryLabelsFor } from "@/lib/site-media";
@@ -251,13 +252,24 @@ function expandTargetIds(
   imageOpts: { galleryLabels: string[]; mediaCategory: string }
 ): string[] {
   const ids: string[] = [];
-  const t = intent.target;
+  let t = intent.target;
+  if (!t?.id) {
+    const named = resolveSectionTargetFromPrompt(prompt, {
+      manifest,
+      config,
+      activePageKey,
+    });
+    if (named?.id) t = named;
+  }
   if (!t?.id) {
     // Infer from prompt keywords
     if (/\bhero\b/i.test(prompt)) ids.push("home.hero", "media.hero", "hero.title", "hero.subtitle");
     if (/\bsplit\b/i.test(prompt)) ids.push("home.split", "media.split", "visual.split.title");
     if (/\bgallery\b/i.test(prompt)) ids.push("home.gallery", "media.gallery.0");
     if (/\bfeature/i.test(prompt)) ids.push("home.features", "visual.features.title");
+    if (/\bservices?\b|\bglance\b|\bcare\s+pathways\b/i.test(prompt)) {
+      ids.push("home.services", "services");
+    }
     if (/\bcta\b|\bcall to action\b/i.test(prompt)) ids.push("visual.cta.title", "visual.cta.button");
     return ids;
   }
@@ -287,6 +299,9 @@ function expandTargetIds(
         "visual.features.items.0.title",
         "visual.features.items.0.body"
       );
+    }
+    if (/services|highlights/i.test(t.id)) {
+      ids.push("services", "home.services");
     }
     if (/cta/i.test(t.id)) ids.push("visual.cta.title", "visual.cta.subtitle", "visual.cta.button");
     if (/form/i.test(t.id)) ids.push("visual.form.title", "visual.form.button");

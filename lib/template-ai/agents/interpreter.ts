@@ -8,11 +8,17 @@ import {
   resolveGalleryCardIndex,
   resolveImageTargetId,
   resolveLayoutUpdates,
+  resolveSectionTargetFromPrompt,
   pickStockImage,
   type AgentHistoryTurn,
   type AgentWorkEntry,
 } from "../agent-helpers";
-import { buildCardListUpdates, detectCardCountRequest } from "../list-cards";
+import {
+  buildCardListUpdates,
+  detectCardCountRequest,
+  isCardRemoveOrResizePrompt,
+  resolveCardListKey,
+} from "../list-cards";
 import { galleryLabelsFor } from "@/lib/site-media";
 import { isStyleIntent, resolveStyleUpdates, sanitizeCss } from "@/lib/site-styles";
 import { resolvePageToDelete } from "@/lib/page-request";
@@ -137,7 +143,14 @@ function interpretPromptLocal(args: InterpretArgs): StructuredInstruction {
     mediaCategory: config.media?.category || "default",
   };
 
-  // Infer target from prompt nouns if missing
+  // Infer target from prompt nouns / section names if missing
+  if (!target) {
+    target = resolveSectionTargetFromPrompt(msg, {
+      manifest: args.manifest,
+      config,
+      activePageKey: page,
+    });
+  }
   if (!target) {
     target = inferTargetFromPrompt(lower, galleryLabels);
   }
@@ -212,10 +225,19 @@ function interpretPromptLocal(args: InterpretArgs): StructuredInstruction {
     });
   }
 
-  // ——— CARD COUNT / SERVICES GRID (before layout-only short-circuit) ———
-  const cardReq = detectCardCountRequest(msg);
+  // ——— CARD COUNT / SERVICES GRID (before layout / hide-section) ———
+  const listKeyPreview = resolveCardListKey(msg, target, config);
+  const currentList =
+    listKeyPreview === "visual.features.items"
+      ? config.content?.visual?.features?.items
+      : config.content?.[listKeyPreview];
+  const currentLen = Array.isArray(currentList) ? currentList.length : undefined;
+
+  const cardReq = detectCardCountRequest(msg, currentLen);
   const cardish =
     cardReq.count != null ||
+    cardReq.removeDelta != null ||
+    isCardRemoveOrResizePrompt(msg) ||
     (cardReq.wantImages && /\b(card|service|glance|feature)\b/i.test(msg) && !/\bgallery\b/i.test(msg)) ||
     (/\b(service|glance)\b/i.test(msg) &&
       /\bcards?\b/i.test(msg) &&
@@ -245,25 +267,33 @@ function interpretPromptLocal(args: InterpretArgs): StructuredInstruction {
         }
         updates.push(u);
       }
+      const resolvedCount =
+        cardReq.count ??
+        (Array.isArray(cardUpdates.find((u) => u.type === "list")?.value)
+          ? (cardUpdates.find((u) => u.type === "list")!.value as any[]).length
+          : null);
       const cols =
         cardReq.columns ||
-        (cardReq.count != null && cardReq.count >= 6 ? 3 : detectColumnCount(msg));
+        (resolvedCount != null && resolvedCount >= 6 ? 3 : detectColumnCount(msg));
       return finish({
         page,
         target,
         actions,
         constraints: [
           ...constraints,
-          "Expand/replace card list in config — do not only tweak layout columns",
+          "Resize card list only — never hide/remove the whole section for card-count prompts",
         ],
         updates,
-        summary: `Resize cards → ${cardReq.count ?? "n"} · ${cols} columns · images=${cardReq.wantImages}`,
+        summary: `Resize cards → ${resolvedCount ?? "n"} · images=${cardReq.wantImages}`,
         confidence: 0.95,
         source: "local",
         needsModel: false,
-        hint: `Updated to ${cardReq.count ?? "more"} cards${
-          cardReq.wantImages ? " with images" : ""
-        } in a ${cols}-column layout.`,
+        hint:
+          cardReq.removeDelta != null
+            ? `Removed ${cardReq.removeDelta} card(s) — now ${resolvedCount} cards (section kept).`
+            : `Updated to ${resolvedCount ?? "more"} cards${
+                cardReq.wantImages ? " with images" : ""
+              } in a ${cols}-column layout.`,
       });
     }
   }
@@ -359,7 +389,11 @@ function interpretPromptLocal(args: InterpretArgs): StructuredInstruction {
   }
 
   // ——— SECTION HIDE / SHOW ———
-  const sectionOp = detectSectionVisibility(lower, target);
+  const sectionOp = detectSectionVisibility(lower, target, {
+    manifest: args.manifest,
+    config,
+    activePageKey: page,
+  });
   if (sectionOp) {
     updates.push({ type: "section", id: sectionOp.id, op: sectionOp.op });
     actions.push({ type: "section_ops", id: sectionOp.id, op: sectionOp.op });
@@ -928,25 +962,51 @@ function detectMediaSlot(lower: string): string | null {
 
 function detectSectionVisibility(
   lower: string,
-  target: { id: string; kind?: string } | null
+  target: { id: string; kind?: string } | null,
+  opts?: {
+    manifest?: TemplateManifest | null;
+    config?: SiteConfig | null;
+    activePageKey?: string;
+  }
 ): { id: string; op: "hide_section" | "show_section" } | null {
+  // “remove 3 cards from this section” must NOT hide the section
+  if (isCardRemoveOrResizePrompt(lower) || (/\bcards?\b/.test(lower) && /\b(remove|delete|drop)\b/.test(lower))) {
+    return null;
+  }
   const show = /\b(show|unhide|reveal)\b/.test(lower);
   const hide = /\b(hide|remove)\b/.test(lower) && /\bsection\b/.test(lower);
   if (!show && !hide) {
-    // "hide the gallery" without saying section
-    const m = lower.match(/\b(hide|remove|show|unhide)\s+(the\s+)?(hero|gallery|features|split|cta|form|banner)\b/);
+    // "hide the gallery" / "hide Services at a glance" without saying "section"
+    const m = lower.match(
+      /\b(hide|remove|show|unhide)\s+(the\s+)?(hero|gallery|features|split|cta|form|banner|services)\b/
+    );
     if (m) {
       const name = m[3];
-      const id = name === "cta" || name === "form" ? `home.${name}` : `home.${name}`;
+      const id = `home.${name}`;
       return {
         id,
         op: /show|unhide/.test(m[1]) ? "show_section" : "hide_section",
       };
     }
+    // Named heading without selection: "hide Services at a glance"
+    if (/\b(hide|remove|show|unhide)\b/.test(lower)) {
+      const named = resolveSectionTargetFromPrompt(lower, opts);
+      if (named?.id && !/\bcards?\b/.test(lower)) {
+        return {
+          id: named.id,
+          op: show || /\b(show|unhide|reveal)\b/.test(lower) ? "show_section" : "hide_section",
+        };
+      }
+    }
     return null;
   }
   if (target?.id && (target.kind === "section" || target.id.startsWith("home."))) {
     return { id: target.id, op: show ? "show_section" : "hide_section" };
+  }
+  // “hide this section” with no selection — try name/keyword in the rest of the prompt
+  const named = resolveSectionTargetFromPrompt(lower, opts);
+  if (named?.id) {
+    return { id: named.id, op: show ? "show_section" : "hide_section" };
   }
   return null;
 }

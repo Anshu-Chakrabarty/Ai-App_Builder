@@ -1,6 +1,175 @@
 // lib/template-ai/agent-helpers.ts — shared intent/target helpers (no pipeline imports)
-import type { ConfigUpdate, SiteConfig } from "./types";
+import type { ConfigUpdate, SiteConfig, TemplateManifest } from "./types";
 import { galleryLabelsFor } from "@/lib/site-media";
+
+export type AgentTarget = { id: string; kind?: string; label?: string };
+
+/** Common heading / keyword aliases → section component (matched against prompt text). */
+const SECTION_COMPONENT_ALIASES: Record<string, string[]> = {
+  hero: ["hero", "homepage hero", "main banner", "hero section"],
+  split: ["split", "split media", "polished layout", "split section"],
+  gallery: ["gallery", "photo grid", "visual story", "gallery section"],
+  features: ["features", "feature icons", "feature section", "why it feels"],
+  services: [
+    "services at a glance",
+    "care pathways",
+    "service cards",
+    "services section",
+    "services",
+    "service grid",
+  ],
+  highlights: ["highlights", "highlight section"],
+  cta: ["cta", "call to action", "cta band", "cta section"],
+  form: ["form", "lead form", "contact form", "form section"],
+  banner: ["page banner", "banner section"],
+  blocks: ["custom blocks", "blocks section"],
+  doctors: ["doctors", "meet your doctors", "providers", "care team"],
+  patients: ["for patients", "patients", "visiting"],
+  work: ["work", "portfolio", "projects"],
+  about: ["about", "about us"],
+  contact: ["contact", "contact section"],
+  pricing: ["pricing", "plans", "pricing section"],
+  faq: ["faq", "faqs", "frequently asked"],
+  team: ["team", "our team"],
+  testimonials: ["testimonials", "reviews"],
+};
+
+/**
+ * Resolve a section from prompt text by id, component, manifest name, heading aliases,
+ * or live config titles — so naming a section works without a Studio selection.
+ */
+export function resolveSectionTargetFromPrompt(
+  prompt: string,
+  opts?: {
+    manifest?: TemplateManifest | null;
+    config?: SiteConfig | null;
+    activePageKey?: string;
+  }
+): AgentTarget | null {
+  const raw = (prompt || "").replace(/^\[Target:[^\]]+\]\s*/i, "").trim();
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+  const page = opts?.activePageKey || "home";
+  const manifest = opts?.manifest;
+  const config = opts?.config;
+
+  type Cand = { id: string; label: string; score: number; pageKey: string };
+  const cands: Cand[] = [];
+
+  const push = (id: string, label: string, score: number, pageKey = "home") => {
+    if (!id || score <= 0) return;
+    const existing = cands.find((c) => c.id === id);
+    if (existing) {
+      if (score > existing.score) {
+        existing.score = score;
+        existing.label = label;
+      }
+      return;
+    }
+    cands.push({ id, label, score, pageKey });
+  };
+
+  const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const phraseIn = (phrase: string): number => {
+    const p = phrase.toLowerCase().trim();
+    if (p.length < 2) return 0;
+    // Prefer multi-word / longer phrases
+    if (p.includes(" ")) {
+      if (lower.includes(p)) return 40 + Math.min(30, p.length);
+      return 0;
+    }
+    // Single token: word boundary; short tokens need stronger context
+    const re = new RegExp(`\\b${escapeRe(p)}\\b`, "i");
+    if (!re.test(lower)) return 0;
+    if (p.length <= 3) return 8;
+    if (p.length <= 5) return 18;
+    return 28;
+  };
+
+  // 1) Manifest sections — name, id, component
+  const sections = manifest?.sections || [];
+  for (const s of sections) {
+    let score = 0;
+    score = Math.max(score, phraseIn(s.name));
+    score = Math.max(score, phraseIn(s.id));
+    score = Math.max(score, phraseIn(s.component));
+    // “home.services” written explicitly
+    if (lower.includes(s.id.toLowerCase())) score = Math.max(score, 55);
+    // Prefer active page
+    if (score > 0 && s.pageKey === page) score += 5;
+    if (score > 0) push(s.id, s.name || s.component, score, s.pageKey);
+  }
+
+  // 2) Built-in component aliases (covers headings like “Services at a glance”)
+  for (const [component, aliases] of Object.entries(SECTION_COMPONENT_ALIASES)) {
+    let best = 0;
+    for (const a of aliases) {
+      best = Math.max(best, phraseIn(a));
+    }
+    if (best <= 0) continue;
+    // Prefer existing manifest section on active/home page
+    const match =
+      sections.find((s) => s.component === component && s.pageKey === page) ||
+      sections.find((s) => s.component === component && s.pageKey === "home") ||
+      sections.find((s) => s.component === component);
+    const id = match?.id || `${page}.${component}`;
+    const label =
+      match?.name ||
+      (component === "services" ? "Services at a glance" : component.charAt(0).toUpperCase() + component.slice(1));
+    // Multi-word alias hits should beat short generic tokens
+    push(id, label, best + (match ? 3 : 0), match?.pageKey || page);
+  }
+
+  // 3) Live config titles (gallery/features/cta/form/split)
+  const titleMap: Array<{ path: string[]; sectionId: string; labelFallback: string }> = [
+    { path: ["visual", "gallery", "title"], sectionId: "home.gallery", labelFallback: "Gallery" },
+    { path: ["visual", "features", "title"], sectionId: "home.features", labelFallback: "Features" },
+    { path: ["visual", "cta", "title"], sectionId: "home.cta", labelFallback: "CTA" },
+    { path: ["visual", "form", "title"], sectionId: "home.form", labelFallback: "Form" },
+    { path: ["visual", "split", "title"], sectionId: "home.split", labelFallback: "Split media" },
+    { path: ["hero", "title"], sectionId: "home.hero", labelFallback: "Hero" },
+  ];
+  if (config) {
+    for (const t of titleMap) {
+      let cur: any = config.content;
+      for (const key of t.path) cur = cur?.[key];
+      const title = typeof cur === "string" ? cur.trim() : "";
+      if (title.length < 3) continue;
+      const sc = phraseIn(title);
+      if (sc > 0) {
+        const man = sections.find((s) => s.id === t.sectionId);
+        push(t.sectionId, title || man?.name || t.labelFallback, sc + 10, "home");
+      }
+    }
+  }
+
+  // 4) Disambiguate services vs highlights when both matched
+  const servicesHit = cands.find((c) => /services/i.test(c.id));
+  const highlightsHit = cands.find((c) => /highlights/i.test(c.id));
+  if (
+    servicesHit &&
+    highlightsHit &&
+    /\b(services?\s+at\s+a\s+glance|care\s+pathways|service\s*cards?|services?)\b/i.test(lower)
+  ) {
+    highlightsHit.score = Math.min(highlightsHit.score, 5);
+    servicesHit.score += 15;
+  }
+
+  // Need a meaningful hit — ignore weak single short-token noise
+  cands.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
+  const best = cands[0];
+  if (!best || best.score < 18) return null;
+
+  // Don't steal gallery-card captions as sections (e.g. short "Care") unless score is strong
+  const component = best.id.includes(".") ? best.id.split(".").pop()! : best.id;
+  if (best.score < 28 && best.label.length <= 5 && !/\bsection\b/i.test(lower)) {
+    if (!new RegExp(`\\b${escapeRe(component)}\\b`, "i").test(lower)) {
+      return null;
+    }
+  }
+
+  return { id: best.id, kind: "section", label: best.label };
+}
 
 export type AgentHistoryTurn = { role: "user" | "assistant"; text: string };
 export type AgentWorkEntry = {

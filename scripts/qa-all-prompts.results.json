@@ -1,5 +1,5 @@
 {
-  "at": 1785909931885,
+  "at": 1785913622932,
   "failed": 0,
   "report": [
     {
@@ -153,8 +153,44 @@
       "detail": "ok"
     },
     {
+      "id": "cards-remove-3-from-6",
+      "category": "Cards",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
       "id": "cards-reduce-to-3",
       "category": "Cards",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "named-cards-remove-no-select",
+      "category": "Named",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "named-cards-6-no-select",
+      "category": "Named",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "named-layout-services-no-select",
+      "category": "Named",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "named-hide-gallery-no-select",
+      "category": "Named",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "id": "named-copy-hero-no-select",
+      "category": "Named",
       "ok": true,
       "detail": "ok"
     }
@@ -286,9 +322,39 @@
       "prompt": "Change the first feature title to \"Online booking\""
     },
     {
+      "id": "cards-remove-3-from-6",
+      "category": "Cards",
+      "prompt": "remove three cards from this section"
+    },
+    {
       "id": "cards-reduce-to-3",
       "category": "Cards",
       "prompt": "make it 3 cards - Services at a glance"
+    },
+    {
+      "id": "named-cards-remove-no-select",
+      "category": "Named",
+      "prompt": "remove three cards from Services at a glance"
+    },
+    {
+      "id": "named-cards-6-no-select",
+      "category": "Named",
+      "prompt": "make it 6 cards with images - Services at a glance"
+    },
+    {
+      "id": "named-layout-services-no-select",
+      "category": "Named",
+      "prompt": "Align Services at a glance into 3 columns"
+    },
+    {
+      "id": "named-hide-gallery-no-select",
+      "category": "Named",
+      "prompt": "hide the gallery section"
+    },
+    {
+      "id": "named-copy-hero-no-select",
+      "category": "Named",
+      "prompt": "Change the hero title to \"Named Hero Works\""
     }
   ]
 }

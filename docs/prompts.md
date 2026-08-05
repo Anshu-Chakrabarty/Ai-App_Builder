@@ -91,13 +91,21 @@ Make buttons lift slightly on hover
 make it 6 cards with images and text and align as 3 by 3 - Services at a glance
 Show 8 service cards with photos
 make it 3 cards - Services at a glance
+remove 3 cards from this section
+remove three cards
+Keep only 3 cards
+Reduce to 3 cards
 Align Services at a glance into 3 columns
 make it 6 cards with images and text - Services at a glance
 ```
 
 | Works when | Preview shows |
 |------------|----------------|
-| Services / highlights section selected | Exact card count, images on cards, 3-column grid |
+| Section selected **or** named in the prompt (e.g. `… - Services at a glance`) | Exact card count, images on cards, 3-column grid |
+
+> **Tip:** You don’t need to click the section first. Naming it works: `remove three cards from Services at a glance`, `hide the gallery`, `change the hero title to "…"`.
+
+> **Important:** “Remove 3 cards” shrinks the card list (6→3). It does **not** hide the whole section. To hide a section say: `Hide the gallery section` (no “cards”).
 
 ---
 
@@ -224,8 +232,8 @@ Update the site
 
 | Goal | Do this |
 |------|---------|
-| One section | Click it in preview, or say “in the hero / gallery / services” |
-| Service cards | Select **Services at a glance**, then card-count prompt |
+| One section | Click it in preview, **or just name it** (“Services at a glance”, “hero”, “gallery”) |
+| Service cards | `make it 6 cards … - Services at a glance` (selection optional) |
 | One gallery tile | “first gallery card” / “Care gallery image” |
 | Follow-up | “make it warmer”, “shorter”, “3 columns” (keeps last target) |
 | New topic | “New request: …” or click a different section |
@@ -241,15 +249,16 @@ Update the site
 | Brand | 1 | ✅ |
 | Theme | 3 | ✅ |
 | Styles | 2 | ✅ |
-| Cards | 3 | ✅ |
+| Cards | 4 | ✅ |
+| Named (no select) | 5 | ✅ |
 | Layout | 3 | ✅ |
 | Images | 3 | ✅ |
 | Sections | 3 | ✅ |
 | Forms | 2 | ✅ |
 | Pages | 1 | ✅ |
-| **Total** | **26** | **✅** |
+| **Total** | **32** | **✅** |
 
-Last run: `npm run qa:prompts:all` — **26/26 passed**.
+Last run: `npm run qa:prompts:all` — **32/32 passed**.
 
 ---
 

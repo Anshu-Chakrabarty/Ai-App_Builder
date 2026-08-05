@@ -51,6 +51,7 @@ export async function runEditPipeline(args: PipelineArgs): Promise<PipelineResul
     workLog: args.workLog,
     target: args.target,
     images: args.images,
+    manifest: args.manifest,
   });
   stages[0] = {
     id: "understand",
