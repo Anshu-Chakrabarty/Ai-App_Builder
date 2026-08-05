@@ -91,6 +91,8 @@ export type SiteConfig = {
     galleryVariant?: "featured" | "equal";
     featureColumns?: number;
     blocksColumns?: number;
+    /** Columns for “Services at a glance” / .service-cards-grid */
+    serviceColumns?: number;
   };
   /**
    * AI-editable CSS / motion / hover layer.

@@ -1,5 +1,6 @@
 import type { Template } from "./types";
 import { esc, MONO, SANS, DISPLAY } from "./render";
+import { renderServiceCards } from "./site-media";
 
 export const EXTRA_TEMPLATES: Template[] = [
   /* ---------- 1. Marketing agency — Atelier ---------- */
@@ -222,11 +223,9 @@ export const EXTRA_TEMPLATES: Template[] = [
             </div>
           </div>
         </section>
-        <section class="wrap" style="padding-top:48px">
+        <section class="wrap services" style="padding-top:48px">
           <div class="eyebrow">Care pathways</div><h2>Services at a glance</h2>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:28px">
-            ${c.services.slice(0, 4).map((s: any) => `<a href="services.html" style="padding:24px 20px;border:1px solid #e2ebe7;border-radius:16px;background:#fff"><div style="font-weight:700;font-size:17px;margin-bottom:6px">${esc(s.name)}</div><div style="color:#5c6b65;font-size:14px">${esc(s.desc)}</div></a>`).join("")}
-          </div>
+          ${renderServiceCards(c.services)}
         </section>`;
       const services = () => `
         <section class="wrap"><div class="eyebrow">Services</div><h2>Whole-person care</h2>

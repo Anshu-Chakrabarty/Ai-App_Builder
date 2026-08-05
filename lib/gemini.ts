@@ -1,4 +1,9 @@
-// lib/gemini.ts — shared helpers for Gemini routes
+// lib/gemini.ts — shared helpers for Gemini routes (+ OpenRouter dual passthrough)
+import {
+  generateViaOpenRouter,
+  hasOpenRouterKey,
+} from "@/lib/openrouter";
+
 export function extractJsonObject(raw: string): string {
   const text = raw
     .trim()
@@ -127,7 +132,7 @@ type GenerateContentArgs = {
   config?: Record<string, unknown>;
 };
 
-type GenerateContentResult = { text?: string | null };
+type GenerateContentResult = { text?: string | null; provider?: string };
 
 type GenAiClient = {
   models: {
@@ -146,10 +151,16 @@ function configForModel(
   return rest;
 }
 
-/**
- * Call Gemini with short backoff, then try fallback models on capacity errors.
- */
-export async function generateContentResilient(
+/** both | openrouter | gemini — default both when OpenRouter key exists */
+function llmStrategy(): "both" | "openrouter" | "gemini" {
+  const raw = (process.env.LLM_STRATEGY || "").trim().toLowerCase();
+  if (raw === "both" || raw === "race" || raw === "parallel") return "both";
+  if (raw === "openrouter" || raw === "or") return "openrouter";
+  if (raw === "gemini" || raw === "google") return "gemini";
+  return hasOpenRouterKey() ? "both" : "gemini";
+}
+
+async function generateViaGemini(
   ai: GenAiClient,
   args: { contents: string; config?: Record<string, unknown> }
 ): Promise<GenerateContentResult> {
@@ -160,11 +171,12 @@ export async function generateContentResilient(
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         if (attempt > 0) await sleep(retryDelayMs(lastErr));
-        return await ai.models.generateContent({
+        const result = await ai.models.generateContent({
           model,
           contents: args.contents,
           config: configForModel(model, args.config),
         });
+        return { ...result, provider: `gemini:${model}` };
       } catch (err) {
         lastErr = err;
         console.error(
@@ -174,7 +186,6 @@ export async function generateContentResilient(
 
         if (isHardQuotaError(err)) {
           sawHardQuota = true;
-          // This model has no remaining free-tier quota — try the next one.
           break;
         }
 
@@ -193,6 +204,67 @@ export async function generateContentResilient(
   throw lastErr instanceof Error
     ? lastErr
     : new Error(String(lastErr ?? "Generation failed"));
+}
+
+/**
+ * Call LLM with dual passthrough when OpenRouter is configured:
+ * - both (default): race OpenRouter + Gemini — first success wins (lower latency)
+ * - openrouter: OpenRouter first, Gemini fallback
+ * - gemini: Gemini only (legacy)
+ */
+export async function generateContentResilient(
+  ai: GenAiClient,
+  args: { contents: string; config?: Record<string, unknown> }
+): Promise<GenerateContentResult> {
+  const strategy = llmStrategy();
+  const useOr = hasOpenRouterKey() && strategy !== "gemini";
+
+  if (useOr && strategy === "both") {
+    const errors: string[] = [];
+    try {
+      const winner = await Promise.any([
+        generateViaOpenRouter(args)
+          .then((r) => {
+            console.info(`LLM via OpenRouter (${r.provider})`);
+            return { text: r.text, provider: r.provider };
+          })
+          .catch((err) => {
+            errors.push(`openrouter: ${errMessage(err).slice(0, 180)}`);
+            throw err;
+          }),
+        generateViaGemini(ai, args)
+          .then((r) => {
+            console.info(`LLM via ${r.provider || "gemini"}`);
+            return r;
+          })
+          .catch((err) => {
+            errors.push(`gemini: ${errMessage(err).slice(0, 180)}`);
+            throw err;
+          }),
+      ]);
+      return winner;
+    } catch (agg) {
+      const detail =
+        errors.join(" | ") ||
+        (agg instanceof Error ? agg.message : String(agg));
+      throw new Error(`Both LLM providers failed: ${detail}`);
+    }
+  }
+
+  if (useOr && strategy === "openrouter") {
+    try {
+      const r = await generateViaOpenRouter(args);
+      console.info("LLM via OpenRouter");
+      return { text: r.text, provider: r.provider };
+    } catch (err) {
+      console.warn(
+        "OpenRouter failed, falling back to Gemini:",
+        errMessage(err).slice(0, 300)
+      );
+    }
+  }
+
+  return generateViaGemini(ai, args);
 }
 
 export const COPYWRITER_SYSTEM =

@@ -59,6 +59,11 @@ export function understandIntent(args: UnderstandArgs): IntentPlan {
     !styleIntent;
 
   const actions = detectActions(msg, images, layoutOnly, namedGalleryIdx, styleIntent);
+  // Card-count / services-grid prompts need copy+layout (not layout-only)
+  if (/\b\d{1,2}\s+cards?\b|\b(make\s+it|add)\s+\d+\s+cards?\b/i.test(msg)) {
+    if (!actions.includes("copy")) actions.push("copy");
+    if (!actions.includes("layout")) actions.push("layout");
+  }
   const kind = detectKind(msg, actions, images);
   const scope = detectScope(msg, target, actions);
   const fastPath = detectFastPath({

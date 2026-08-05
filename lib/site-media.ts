@@ -244,6 +244,13 @@ export function mediaCSS(accent: string): string {
     .feature-icons .card-soft:hover{transform:translateY(-3px);box-shadow:0 16px 40px rgba(16,24,40,.08)}
     .feature-icons h3{font-size:17px;font-weight:800;margin-bottom:6px;letter-spacing:-.01em}
     .feature-icons p{color:#5b6472;font-size:14px;line-height:1.55}
+    .service-cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:16px;margin-top:28px}
+    .service-cards-grid .service-card{display:block;padding:0;border:1px solid #e2ebe7;border-radius:16px;background:#fff;overflow:hidden;text-decoration:none;color:inherit;min-width:0;transition:transform .2s,box-shadow .2s}
+    .service-cards-grid .service-card:hover{transform:translateY(-3px);box-shadow:0 14px 32px rgba(16,24,40,.08)}
+    .service-cards-grid .service-card img{width:100%;height:140px;object-fit:cover;display:block;background:#eef2f0}
+    .service-cards-grid .service-card .service-card-body{padding:20px 18px}
+    .service-cards-grid .service-card .service-card-name{font-weight:700;font-size:17px;margin-bottom:6px}
+    .service-cards-grid .service-card .service-card-desc{color:#5c6b65;font-size:14px;line-height:1.5}
     .photo-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px;margin-top:28px}
     .photo-grid .shot{border-radius:16px;overflow:hidden;position:relative;min-height:160px;background:#e8ecf2;min-width:0}
     .photo-grid .shot img{width:100%;height:100%;object-fit:cover;min-height:160px;transition:transform .45s ease}
@@ -297,6 +304,7 @@ export function mediaCSS(accent: string): string {
       .media-hero .hero-copy{padding:32px 16px 40px}
       .media-hero .hero-copy h1{max-width:100%}
       .feature-icons{grid-template-columns:1fr!important}
+      .service-cards-grid{grid-template-columns:1fr!important}
       .split-media .frame{min-height:220px}
       .split-media .frame img{min-height:220px}
       .page-banner{height:150px}
@@ -320,6 +328,7 @@ export function layoutOverrideCSS(layout?: {
   galleryVariant?: "featured" | "equal";
   featureColumns?: number;
   blocksColumns?: number;
+  serviceColumns?: number;
 } | null): string {
   if (!layout) return "";
   const parts: string[] = [];
@@ -327,6 +336,12 @@ export function layoutOverrideCSS(layout?: {
   if (fCols) {
     parts.push(
       `@media(min-width:721px){.feature-icons{grid-template-columns:repeat(${fCols},minmax(0,1fr))!important}}`
+    );
+  }
+  const sCols = clampCols(layout.serviceColumns);
+  if (sCols) {
+    parts.push(
+      `@media(min-width:721px){.service-cards-grid{grid-template-columns:repeat(${sCols},minmax(0,1fr))!important}}`
     );
   }
   const gCols = clampCols(layout.galleryColumns) || (layout.galleryVariant === "equal" ? 3 : 0);
@@ -343,6 +358,25 @@ export function layoutOverrideCSS(layout?: {
     );
   }
   return parts.length ? `\n${parts.join("\n")}` : "";
+}
+
+/** Home “Services at a glance” cards — full list, optional images, AI-targetable. */
+export function renderServiceCards(
+  services: Array<{ name?: string; desc?: string; image?: string }> | undefined,
+  opts?: { href?: string }
+): string {
+  const list = Array.isArray(services) ? services : [];
+  const href = opts?.href || "services.html";
+  return `<div class="service-cards-grid">
+      ${list
+        .map((s, i) => {
+          const img = s.image
+            ? `<img data-ai-id="services.${i}.image" src="${esc(s.image)}" alt="" loading="lazy" />`
+            : "";
+          return `<a class="service-card" href="${esc(href)}" data-ai-id="services.${i}">${img}<div class="service-card-body"><div class="service-card-name" data-ai-id="services.${i}.name">${esc(s.name)}</div><div class="service-card-desc" data-ai-id="services.${i}.desc">${esc(s.desc)}</div></div></a>`;
+        })
+        .join("")}
+    </div>`;
 }
 
 function clampCols(n?: number): number {

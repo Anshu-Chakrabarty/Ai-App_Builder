@@ -388,11 +388,12 @@ export function renderPage(
 /** Tag unmarked <section>s so Studio/AI can target template body blocks. */
 function stampTemplateSections(html: string, pageKey: string, contentKeys: string[]): string {
   let idx = 0;
-  return html.replace(/<section(\s[^>]*)?>/gi, (full, attrs = "") => {
+  return html.replace(/<section(\s[^>]*)?>/gi, (full, attrs = "", offset: number) => {
     if (/data-ai-section\s*=/i.test(attrs || "")) return full;
     idx += 1;
     const idAttr = ((attrs || "").match(/\bid=["']([^"']+)/i) || [])[1];
     const cls = ((attrs || "").match(/\bclass=["']([^"']+)/i) || [])[1] || "";
+    const peek = html.slice(offset, offset + 480);
     let name =
       idAttr ||
       (/hero/i.test(cls) ? "hero" : "") ||
@@ -405,13 +406,22 @@ function stampTemplateSections(html: string, pageKey: string, contentKeys: strin
       (/feature/i.test(cls) ? "featured" : "") ||
       (/shop|product/i.test(cls) ? "shop" : "") ||
       "";
+    // Prefer heading text over ordered contentKeys (avoids tagging Services as highlights)
     if (!name) {
-      const match = contentKeys.find(
-        (k) => k !== "hero" && k !== "contact" // hero/contact often elsewhere
-      );
-      // Prefer ordered content keys for unmarked sections
+      if (/services at a glance|care pathways/i.test(peek)) name = "services";
+      else if (/meet (your )?(doctors|providers|team)/i.test(peek)) name = contentKeys.includes("doctors")
+        ? "doctors"
+        : contentKeys.includes("providers")
+          ? "providers"
+          : "team";
+      else if (/for patients|visiting/i.test(peek)) name = contentKeys.includes("patients")
+        ? "patients"
+        : contentKeys.includes("visitors")
+          ? "visitors"
+          : "";
+    }
+    if (!name) {
       name = contentKeys[Math.min(idx - 1, contentKeys.length - 1)] || `section-${idx}`;
-      void match;
     }
     if (contentKeys.includes(name) || !name) {
       /* keep */

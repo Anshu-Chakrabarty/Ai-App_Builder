@@ -373,6 +373,7 @@ export function analyzeTemplate(args: {
       "layout.galleryVariant",
       "layout.featureColumns",
       "layout.blocksColumns",
+      "layout.serviceColumns",
     ];
   }
 
@@ -382,6 +383,7 @@ export function analyzeTemplate(args: {
     { id: "layout.galleryVariant", label: "Gallery layout variant" },
     { id: "layout.featureColumns", label: "Feature columns" },
     { id: "layout.blocksColumns", label: "Blocks columns" },
+    { id: "layout.serviceColumns", label: "Service card columns" },
   ] as const) {
     fields.push({
       id: f.id,

@@ -118,7 +118,14 @@ export function resolveImageTargetId(
 export function isLayoutIntent(prompt: string): boolean {
   const msg = (prompt || "").toLowerCase().trim();
   if (!msg) return false;
+  // “Make it 6 cards” / images+text on cards is content reshape, not layout-only
+  if (/\b\d{1,2}\s+cards?\b/.test(msg)) return false;
+  if (/\b(add|more)\s+cards?\b/.test(msg)) return false;
+  if (/\bcards?\b/.test(msg) && /\b(image|images|photo|text|modify|rewrite)\b/.test(msg)) {
+    return false;
+  }
   if (/\b\d\s*[\/x×]\s*\d\b/.test(msg)) return true;
+  if (/\b(\d)\s*by\s*(\d)\b/.test(msg)) return true;
   if (/\b(\d)\s*col(?:umn)?s?\b/.test(msg)) return true;
   if (/\bin\s+a\s+\d[- ]?(column|col|row)\b/.test(msg)) return true;
   if (/\b(equal|uniform)\s+(grid|columns?)\b/.test(msg)) return true;
@@ -133,6 +140,7 @@ export function detectColumnCount(prompt: string): number {
   const msg = (prompt || "").toLowerCase();
   const m =
     msg.match(/\b(\d)\s*[\/x×]\s*\d\b/) ||
+    msg.match(/\b(\d)\s*by\s*\d\b/) ||
     msg.match(/\b(\d)\s*col(?:umn)?s?\b/) ||
     msg.match(/\bin\s+(\d)\b/) ||
     msg.match(/\b(\d)\s*per\s*row\b/);
@@ -156,7 +164,10 @@ export function resolveLayoutUpdates(
       { type: "layout", id: "layout.galleryVariant", value: "equal", op: "set" },
     ];
   }
-  if (/feature|icon|card|why it feels/.test(blob)) {
+  if (/service|glance|care pathway|home\.services|home\.highlights/.test(blob)) {
+    return [{ type: "layout", id: "layout.serviceColumns", value: cols, op: "set" }];
+  }
+  if (/feature|icon|why it feels|feature-icons|home\.features/.test(blob)) {
     return [{ type: "layout", id: "layout.featureColumns", value: cols, op: "set" }];
   }
   if (/block|added|html|widget/.test(blob) || target?.id === "home.blocks") {
@@ -173,6 +184,7 @@ export function resolveLayoutUpdates(
     { type: "layout", id: "layout.galleryColumns", value: cols, op: "set" },
     { type: "layout", id: "layout.galleryVariant", value: "equal", op: "set" },
     { type: "layout", id: "layout.featureColumns", value: cols, op: "set" },
+    { type: "layout", id: "layout.serviceColumns", value: cols, op: "set" },
   ];
 }
 

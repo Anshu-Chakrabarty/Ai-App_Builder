@@ -246,6 +246,10 @@ function buildAllowlist(
     allow.add("layout.galleryVariant");
     allow.add("layout.featureColumns");
     allow.add("layout.blocksColumns");
+    allow.add("layout.serviceColumns");
+    allow.add("styles.patches.service-grid");
+    allow.add("services");
+    allow.add("visual.features.items");
   }
   if (intent.actions.includes("theme") || intent.actions.includes("style")) {
     allow.add("theme.primary");
@@ -303,6 +307,16 @@ function relaxesForAction(u: ConfigUpdate, intent: IntentPlan): boolean {
     return true;
   }
   if (intent.actions.includes("image") && (u.type === "image" || u.id.startsWith("media."))) return true;
+  if (
+    intent.actions.includes("copy") &&
+    (u.type === "list" ||
+      u.type === "text" ||
+      u.id === "services" ||
+      u.id === "visual.features.items" ||
+      u.id === "departments")
+  ) {
+    return true;
+  }
   if (intent.actions.includes("page-remove") && u.op === "remove_page") return true;
   if (
     (intent.actions.includes("hide-section") || intent.actions.includes("show-section")) &&

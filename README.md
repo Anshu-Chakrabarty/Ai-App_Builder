@@ -53,12 +53,16 @@ Open [http://localhost:3000](http://localhost:3000).
 |----------|----------|-------------|
 | `GEMINI_API_KEY` | **Yes** | Google AI Studio / Gemini API key for generation & Studio edits |
 | `GEMINI_MODEL` | No | Override default Gemini model id |
+| `OPENROUTER_API_KEY` | No | OpenRouter key — races with Gemini when `LLM_STRATEGY=both` |
+| `OPENROUTER_MODEL` | No | OpenRouter model id (default `openai/gpt-4o`) |
+| `LLM_STRATEGY` | No | `both` (race), `openrouter`, or `gemini` |
 | `GITHUB_TOKEN` | No | Higher rate limits for live Vercel/GitHub template catalogs |
 | `ENVATO_PERSONAL_TOKEN` | No | ThemeForest catalog (optional marketplace) |
 
 Copy from [`.env.example`](.env.example). **Never commit** `.env.local`.
 
-Get a Gemini key: [Google AI Studio](https://aistudio.google.com/apikey).
+Get a Gemini key: [Google AI Studio](https://aistudio.google.com/apikey).  
+Get an OpenRouter key: [openrouter.ai/keys](https://openrouter.ai/keys).
 
 ## Deploy on Vercel (from GitHub)
 

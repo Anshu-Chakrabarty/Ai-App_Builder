@@ -12,6 +12,7 @@ import {
   type AgentHistoryTurn,
   type AgentWorkEntry,
 } from "../agent-helpers";
+import { buildCardListUpdates, detectCardCountRequest } from "../list-cards";
 import { galleryLabelsFor } from "@/lib/site-media";
 import { isStyleIntent, resolveStyleUpdates, sanitizeCss } from "@/lib/site-styles";
 import { resolvePageToDelete } from "@/lib/page-request";
@@ -211,8 +212,65 @@ function interpretPromptLocal(args: InterpretArgs): StructuredInstruction {
     });
   }
 
+  // ——— CARD COUNT / SERVICES GRID (before layout-only short-circuit) ———
+  const cardReq = detectCardCountRequest(msg);
+  const cardish =
+    cardReq.count != null ||
+    (cardReq.wantImages && /\b(card|service|glance|feature)\b/i.test(msg)) ||
+    (/\b(card|service|glance)\b/i.test(msg) && cardReq.wantText && cardReq.wantImages);
+  if (cardish) {
+    // Studio often mis-tags “Services at a glance” as home.highlights
+    if (
+      target?.id === "home.highlights" ||
+      (/service|glance|card/i.test(`${msg} ${target?.label || ""}`) &&
+        target?.id?.includes("highlight"))
+    ) {
+      target = { id: "home.services", kind: "section", label: "Services at a glance" };
+    }
+    const cardUpdates = buildCardListUpdates({
+      prompt: msg,
+      config,
+      target,
+    });
+    if (cardUpdates.length) {
+      for (const u of cardUpdates) {
+        if (u.type === "layout") {
+          actions.push({ type: "layout_update", id: u.id, value: u.value });
+        } else if (u.type === "css") {
+          actions.push({ type: "style_update", id: u.id, value: u.value });
+        } else {
+          actions.push({ type: "ui_update", id: u.id, value: u.value });
+        }
+        updates.push(u);
+      }
+      const cols =
+        cardReq.columns ||
+        (cardReq.count != null && cardReq.count >= 6 ? 3 : detectColumnCount(msg));
+      return finish({
+        page,
+        target,
+        actions,
+        constraints: [
+          ...constraints,
+          "Expand/replace card list in config — do not only tweak layout columns",
+        ],
+        updates,
+        summary: `Resize cards → ${cardReq.count ?? "n"} · ${cols} columns · images=${cardReq.wantImages}`,
+        confidence: 0.95,
+        source: "local",
+        needsModel: false,
+        hint: `Updated to ${cardReq.count ?? "more"} cards${
+          cardReq.wantImages ? " with images" : ""
+        } in a ${cols}-column layout.`,
+      });
+    }
+  }
+
   // ——— LAYOUT ———
-  if (intent.fastPath === "layout" || (isLayoutIntent(msg) && !/\b(image|photo)\b/i.test(msg))) {
+  if (
+    intent.fastPath === "layout" ||
+    (isLayoutIntent(msg) && !/\b(image|photo|picture)\b/i.test(msg) && cardReq.count == null)
+  ) {
     const layoutUpdates = resolveLayoutUpdates(msg, target);
     for (const u of layoutUpdates) {
       actions.push({ type: "layout_update", id: u.id, value: u.value });
@@ -756,6 +814,10 @@ export function actionsToUpdates(
       out.push({ type: "image", id: a.id, value: a.value, op: "set" });
       continue;
     }
+    if (Array.isArray(a.value)) {
+      out.push({ type: "list", id: a.id, value: a.value, op: "set" });
+      continue;
+    }
     if (a.id === "theme.primary" || a.id === "accent") {
       out.push({ type: "theme", id: "theme.primary", value: a.value, op: "set" });
       continue;
@@ -839,6 +901,9 @@ function inferTargetFromPrompt(
   if (/\bhero\b/.test(lower)) return { id: "home.hero", kind: "section", label: "Hero" };
   if (/\bsplit\b/.test(lower)) return { id: "home.split", kind: "section", label: "Split" };
   if (/\bgallery\b/.test(lower)) return { id: "home.gallery", kind: "section", label: "Gallery" };
+  if (/\bservices?\s+at\s+a\s+glance|\bcare\s+pathways\b|\bservices?\b.*\bcards?\b/.test(lower)) {
+    return { id: "home.services", kind: "section", label: "Services at a glance" };
+  }
   if (/\bfeature/.test(lower)) return { id: "home.features", kind: "section", label: "Features" };
   if (/\bcta\b|call to action/.test(lower)) return { id: "home.cta", kind: "section", label: "CTA" };
   if (/\bform\b/.test(lower)) return { id: "home.form", kind: "section", label: "Form" };
