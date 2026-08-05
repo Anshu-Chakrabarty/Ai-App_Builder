@@ -1,0 +1,325 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fort Hospital — Home</title>
+<meta name="description" content="Meridian General is a full-service community hospital with emergency, surgical, and specialty care under one roof.">
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap');
+    *{margin:0;padding:0;box-sizing:border-box}
+    html,body{overflow-x:hidden;max-width:100%;-webkit-text-size-adjust:100%}
+    body{font-family:"Fraunces", Georgia, "Times New Roman", serif;color:#1a1a1a;line-height:1.65;-webkit-font-smoothing:antialiased;background:#fff}
+    a{color:inherit;text-decoration:none}
+    .wrap{max-width:1100px;margin:0 auto;padding:0 28px;width:100%}
+    img,video,iframe,table{max-width:100%}
+    table{display:block;overflow-x:auto}
+    nav{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;
+        align-items:center;padding:14px 28px;background:rgba(255,255,255,.88);
+        backdrop-filter:blur(14px);border-bottom:1px solid #ececec;box-shadow:0 1px 0 rgba(255,255,255,.6)}
+    nav .brand{font-weight:800;letter-spacing:-.02em;font-size:18px;display:flex;align-items:center;gap:10px}
+    nav .links{display:flex;gap:18px;font-size:14px;font-weight:600;flex-wrap:wrap;align-items:center}
+    nav .links a{opacity:.72;transition:.2s;display:inline-flex;align-items:center;gap:6px}
+    nav .links a:hover,nav .links a.active{opacity:1;color:#1B4F72}
+    nav .nav-cta{background:#1B4F72;color:#fff!important;opacity:1!important;padding:9px 14px;border-radius:10px;font-size:13px;box-shadow:0 8px 20px #1B4F7244}
+    section{padding:72px 0}
+    h1{font-size:clamp(34px,6vw,60px);line-height:1.05;letter-spacing:-.03em;font-weight:800}
+    h2{font-size:clamp(26px,3.5vw,38px);letter-spacing:-.02em;font-weight:800;margin-bottom:14px}
+    h3{letter-spacing:-.01em}
+    .eyebrow{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;font-size:12px;letter-spacing:.16em;text-transform:uppercase;
+        color:#1B4F72;font-weight:700;margin-bottom:16px;display:inline-flex;align-items:center;gap:8px}
+    .btn{display:inline-flex;align-items:center;gap:8px;background:#1B4F72;color:#fff;padding:14px 24px;border-radius:12px;
+        font-weight:700;font-size:15px;transition:.2s;border:none;cursor:pointer;box-shadow:0 10px 24px #1B4F7233}
+    .btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+    .btn-secondary{display:inline-flex;align-items:center;gap:8px;background:transparent;color:#1B4F72;padding:13px 22px;border-radius:12px;
+        font-weight:700;font-size:15px;border:1.5px solid #1B4F72}
+    .lead{font-size:19px;color:#4a4a4a;max-width:560px}
+    footer{padding:44px 0 96px;border-top:1px solid #ececec;color:#888;font-size:14px;
+        display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:24px}
+    footer .wrap-foot{display:contents}
+    
+    .site-form{background:linear-gradient(180deg,#fff,#f6f8fb);border:1px solid #e6e9ef;border-radius:20px;padding:28px;margin-top:28px;max-width:560px;box-shadow:0 18px 50px rgba(16,24,40,.06)}
+    .site-form h3{font-size:22px;font-weight:800;margin-bottom:8px;letter-spacing:-.02em;display:flex;align-items:center;gap:10px}
+    .site-form p{color:#5b6472;margin-bottom:18px;font-size:15px}
+    .site-form label{display:block;font-size:13px;font-weight:700;margin:0 0 6px;color:#2d3440}
+    .site-form .field{margin-bottom:14px}
+    .site-form input,.site-form select,.site-form textarea{
+      width:100%;padding:12px 14px;border:1px solid #d5dae3;border-radius:10px;font:inherit;background:#fff;color:#1a1a1a
+    }
+    .site-form input:focus,.site-form select:focus,.site-form textarea:focus{outline:2px solid #1B4F7255;border-color:#1B4F72}
+    .site-form textarea{min-height:96px;resize:vertical}
+    .site-form .form-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:8px}
+    .site-form .hint{font-size:12px;color:#7a8494}
+    .cta-band{margin:48px 0 0;padding:44px 32px;border-radius:22px;background:
+      linear-gradient(135deg,#1B4F72 0%,#1B4F72cc 55%,#111827 140%);color:#fff;position:relative;overflow:hidden}
+    .cta-band::after{content:"";position:absolute;right:-40px;top:-40px;width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,.12)}
+    .cta-band h3{font-size:clamp(22px,3vw,32px);font-weight:800;letter-spacing:-.02em;margin-bottom:8px;position:relative;z-index:1;display:flex;align-items:center;gap:10px}
+    .cta-band p{opacity:.92;max-width:52ch;margin-bottom:18px;position:relative;z-index:1}
+    .cta-band .btn-row{display:flex;gap:12px;flex-wrap:wrap;position:relative;z-index:1}
+    .cta-band .btn-ghost{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.35);padding:12px 20px;border-radius:10px;font-weight:700;display:inline-flex;align-items:center;gap:8px}
+    .sticky-cta{position:fixed;bottom:16px;right:16px;z-index:40;display:flex;gap:8px}
+    .sticky-cta a{box-shadow:0 10px 30px rgba(0,0,0,.18)}
+    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:12px 18px;border-radius:999px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:.25s;z-index:50}
+    .toast.show{opacity:1}
+  
+    
+    html,body{overflow-x:hidden;max-width:100%;-webkit-text-size-adjust:100%}
+    img{max-width:100%;height:auto;display:block}
+    .media-hero{position:relative;min-height:min(62vh,560px);display:grid;align-items:end;overflow:hidden;border-radius:0 0 28px 28px;margin-bottom:8px}
+    .media-hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+    .media-hero .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,12,18,.15) 0%,rgba(10,12,18,.72) 100%)}
+    .media-hero .hero-copy{position:relative;z-index:2;padding:48px 28px 56px;color:#fff;max-width:1100px;margin:0 auto;width:100%}
+    .media-hero .hero-copy .eyebrow{color:#fff;opacity:.9}
+    .media-hero .hero-copy h1{color:#fff;max-width:16ch;text-shadow:0 8px 40px rgba(0,0,0,.25)}
+    .media-hero .hero-copy .lead{color:rgba(255,255,255,.88)}
+    .media-hero .hero-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
+    .media-hero .btn-light{background:#fff;color:#1B4F72}
+    .icon{display:inline-flex;width:22px;height:22px;vertical-align:middle;flex-shrink:0}
+    .icon svg{width:100%;height:100%}
+    .icon-lg{width:28px;height:28px}
+    .icon-badge{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;background:#1B4F7218;color:#1B4F72;margin-bottom:14px}
+    .icon-badge .icon{width:24px;height:24px}
+    .feature-icons{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:18px;margin-top:28px}
+    .feature-icons .card-soft{background:#fff;border:1px solid #e8ecf2;border-radius:18px;padding:22px 20px;box-shadow:0 10px 30px rgba(16,24,40,.04);transition:transform .2s,box-shadow .2s;min-width:0}
+    .feature-icons .card-soft:hover{transform:translateY(-3px);box-shadow:0 16px 40px rgba(16,24,40,.08)}
+    .feature-icons h3{font-size:17px;font-weight:800;margin-bottom:6px;letter-spacing:-.01em}
+    .feature-icons p{color:#5b6472;font-size:14px;line-height:1.55}
+    .service-cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:16px;margin-top:28px}
+    .service-cards-grid .service-card{display:block;padding:0;border:1px solid #e2ebe7;border-radius:16px;background:#fff;overflow:hidden;text-decoration:none;color:inherit;min-width:0;transition:transform .2s,box-shadow .2s}
+    .service-cards-grid .service-card:hover{transform:translateY(-3px);box-shadow:0 14px 32px rgba(16,24,40,.08)}
+    .service-cards-grid .service-card img{width:100%;height:140px;object-fit:cover;display:block;background:#eef2f0}
+    .service-cards-grid .service-card .service-card-body{padding:20px 18px}
+    .service-cards-grid .service-card .service-card-name{font-weight:700;font-size:17px;margin-bottom:6px}
+    .service-cards-grid .service-card .service-card-desc{color:#5c6b65;font-size:14px;line-height:1.5}
+    .photo-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px;margin-top:28px}
+    .photo-grid .shot{border-radius:16px;overflow:hidden;position:relative;min-height:160px;background:#e8ecf2;min-width:0}
+    .photo-grid .shot img{width:100%;height:100%;object-fit:cover;min-height:160px;transition:transform .45s ease}
+    .photo-grid .shot:hover img{transform:scale(1.04)}
+    .photo-grid .shot:nth-child(1){grid-column:span 7;min-height:280px}
+    .photo-grid .shot:nth-child(2){grid-column:span 5;min-height:280px}
+    .photo-grid .shot:nth-child(3),.photo-grid .shot:nth-child(4),.photo-grid .shot:nth-child(5){grid-column:span 4}
+    .photo-grid .shot .cap{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700;color:#1a1a1a}
+    .photo-grid.is-equal{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .photo-grid.is-equal .shot,.photo-grid.is-equal .shot:nth-child(n){grid-column:auto;min-height:200px}
+    .html-blocks-grid{display:grid;gap:18px;margin:24px auto;max-width:1100px;padding:0 20px;align-items:stretch}
+    .html-blocks-grid > *{min-width:0}
+    .split-media{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:36px;align-items:center;margin-top:20px}
+    .split-media .frame{border-radius:22px;overflow:hidden;min-height:320px;box-shadow:0 20px 50px rgba(16,24,40,.12);position:relative}
+    .split-media .frame img{width:100%;height:100%;object-fit:cover;min-height:320px}
+    .split-media .frame .float-chip{position:absolute;left:16px;bottom:16px;display:flex;align-items:center;gap:8px;background:#fff;padding:10px 14px;border-radius:999px;font-size:13px;font-weight:700;box-shadow:0 10px 30px rgba(0,0,0,.12);color:#1a1a1a}
+    .avatar-row{display:flex;align-items:center;gap:10px;margin-top:18px;flex-wrap:wrap}
+    .avatar-row .avs{display:flex}
+    .avatar-row .avs img{width:36px;height:36px;border-radius:50%;border:2px solid #fff;object-fit:cover;margin-left:-10px;background:#ddd}
+    .avatar-row .avs img:first-child{margin-left:0}
+    .page-banner{position:relative;height:220px;overflow:hidden;border-radius:0 0 22px 22px;margin-bottom:8px}
+    .page-banner img{width:100%;height:100%;object-fit:cover}
+    .page-banner .shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,12,18,.65),rgba(10,12,18,.2))}
+    .page-banner .label{position:absolute;left:28px;bottom:28px;color:#fff;z-index:2;max-width:calc(100% - 40px)}
+    .page-banner .label h1{font-size:clamp(28px,4vw,42px);color:#fff}
+    .brand-mark-img{width:34px;height:34px;border-radius:10px;object-fit:cover;margin-right:10px;vertical-align:middle;box-shadow:0 0 0 2px #1B4F7233}
+    nav .brand{display:flex;align-items:center;gap:0;min-width:0}
+    body{background:
+      radial-gradient(1200px 400px at 10% -10%, #1B4F7214, transparent 55%),
+      radial-gradient(900px 360px at 90% 0%, #1B4F720d, transparent 50%),
+      #fff}
+    section .wrap > [style*="border:1px"],
+    section .wrap a[style*="border:1px"],
+    section .wrap div[style*="border-radius"]{
+      transition:transform .2s ease, box-shadow .2s ease;
+    }
+    @media(max-width:860px){
+      .split-media{grid-template-columns:1fr!important;gap:20px}
+      .photo-grid,.photo-grid.is-equal{grid-template-columns:1fr!important}
+      .photo-grid .shot,
+      .photo-grid .shot:nth-child(1),
+      .photo-grid .shot:nth-child(2),
+      .photo-grid .shot:nth-child(3),
+      .photo-grid .shot:nth-child(4),
+      .photo-grid .shot:nth-child(5),
+      .photo-grid.is-equal .shot{
+        grid-column:1 / -1!important;min-height:200px;width:100%
+      }
+      .html-blocks-grid{grid-template-columns:1fr!important;padding:0 16px}
+      .media-hero{min-height:min(70vh,480px);border-radius:0 0 18px 18px}
+      .media-hero .hero-copy{padding:32px 16px 40px}
+      .media-hero .hero-copy h1{max-width:100%}
+      .feature-icons{grid-template-columns:1fr!important}
+      .service-cards-grid{grid-template-columns:1fr!important}
+      .split-media .frame{min-height:220px}
+      .split-media .frame img{min-height:220px}
+      .page-banner{height:150px}
+      .page-banner .label{left:16px;bottom:16px}
+      .cta-band{padding:28px 18px;border-radius:16px}
+      .site-form{padding:20px;margin-top:18px}
+      .float-chip{max-width:calc(100% - 32px)}
+    }
+    @media(max-width:480px){
+      .media-hero{min-height:340px}
+      .photo-grid .shot{min-height:150px}
+      .feature-icons .card-soft{padding:16px}
+      .split-media .frame .float-chip{font-size:12px;padding:8px 10px}
+    }
+  
+    
+    /* AI site styles */
+.eyebrow,nav .links a:hover,nav .links a.active{color:#1B4F72}
+.btn,nav .nav-cta{background:#1B4F72}
+.btn-secondary{color:#1B4F72;border-color:#1B4F72}
+a,.btn,.btn-secondary,.card-soft,.shot,nav .links a{transition:color 220ms cubic-bezier(.22,.61,.36,1),background 220ms cubic-bezier(.22,.61,.36,1),transform 220ms cubic-bezier(.22,.61,.36,1),box-shadow 220ms cubic-bezier(.22,.61,.36,1),opacity 220ms cubic-bezier(.22,.61,.36,1),filter 220ms cubic-bezier(.22,.61,.36,1),border-color 220ms cubic-bezier(.22,.61,.36,1)}
+.btn:hover{transform:translateY(-2px) scale(1.02)}
+.card-soft:hover,.feature-icons .card-soft:hover{transform:translateY(-4px);box-shadow:0 18px 40px rgba(16,24,40,.12)}
+    @media(max-width:720px){
+      .wrap{padding:0 16px}
+      section{padding:40px 0}
+      nav{flex-wrap:wrap;gap:10px;padding:12px 14px;align-items:flex-start}
+      nav .brand{font-size:15px;max-width:46%;min-width:0}
+      nav .brand span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      nav .links{
+        width:100%;gap:8px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+        padding-bottom:4px;scrollbar-width:thin
+      }
+      nav .links a{display:inline-flex!important;font-size:12px;white-space:nowrap;flex-shrink:0;opacity:.8}
+      nav .nav-cta{padding:8px 12px;font-size:12px}
+      h1{font-size:clamp(28px,8vw,42px)}
+      h2{font-size:clamp(22px,6vw,30px)}
+      .lead{font-size:16px;max-width:100%}
+      .btn,.btn-secondary{width:100%;justify-content:center;text-align:center}
+      .hero-actions,.btn-row{flex-direction:column;align-items:stretch}
+      footer{padding:28px 0 100px;flex-direction:column;gap:8px}
+      .sticky-cta{left:12px;right:12px;bottom:12px;justify-content:stretch}
+      .sticky-cta a{flex:1;justify-content:center;width:100%}
+      [style*="grid-template-columns"]{grid-template-columns:1fr!important}
+      [style*="display:grid"]{gap:16px!important}
+      [style*="display: flex"][style*="gap"],
+      [style*="display:flex"][style*="gap"]{flex-wrap:wrap!important}
+      [style*="min-width:"]{min-width:0!important}
+      [style*="width:"][style*="px"]{max-width:100%!important}
+    }
+  </style></head>
+<body><nav><div class="brand"><img class="brand-mark-img" src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=1200&q=80&auto=format&fit=crop" alt="" width="34" height="34"><span>Fort Hospital</span></div><div class="links"><a href="index.html" class="active">Home</a><a href="departments.html" class="">Departments</a><a href="specialists.html" class="">Specialists</a><a href="visitors.html" class="">Visitors</a><a href="contact.html" class="nav-cta">Contact</a></div></nav><section class="media-hero" data-ai-section="hero" data-ai-id="home.hero" id="hero">
+    <img data-ai-id="media.hero" src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=1200&q=80&auto=format&fit=crop" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80&auto=format&fit=crop'" alt="Fort Hospital hero" >
+    <div class="shade"></div>
+    <div class="hero-copy">
+      <div class="eyebrow"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"></path></svg></span> Fort Hospital</div>
+      <h1 data-ai-id="hero.title">Care for our community, every day</h1>
+      <p class="lead" style="margin-top:14px" data-ai-id="hero.subtitle">Meridian General is a full-service community hospital with emergency, surgical, and specialty care under one roof.</p>
+      <div class="hero-actions">
+        <a class="btn btn-light" href="contact.html" data-ai-id="hero.ctaText"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg></span> Find a department</a>
+        <a class="btn-secondary" style="color:#fff;border-color:rgba(255,255,255,.55)" href="#features"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"></path></svg></span> Explore</a>
+      </div>
+    </div>
+  </section>
+        <section data-ai-section="hero" data-ai-id="home.hero" id="hero" style="background:linear-gradient(180deg,#eef4f8 0%,#fff 70%);padding:100px 0 56px">
+          <div class="wrap">
+            <div class="eyebrow">Fort Hospital</div>
+            <h1 style="font-family:"Fraunces", Georgia, "Times New Roman", serif;max-width:16ch">Care for our community, every day</h1>
+            <p class="lead" style="margin-top:18px">Meridian General is a full-service community hospital with emergency, surgical, and specialty care under one roof.</p>
+            <div style="margin-top:28px"><a class="btn" href="departments.html">Find a department</a></div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:48px">
+              <div style="padding:22px;background:#fff;border:1px solid #d9e4ec;border-radius:12px"><div style="font-size:28px;font-weight:800;color:#1B4F72;font-family:"Fraunces", Georgia, "Times New Roman", serif">24/7</div><div style="color:#5a6b78;font-size:14px;margin-top:4px">emergency department</div></div><div style="padding:22px;background:#fff;border:1px solid #d9e4ec;border-radius:12px"><div style="font-size:28px;font-weight:800;color:#1B4F72;font-family:"Fraunces", Georgia, "Times New Roman", serif">180+</div><div style="color:#5a6b78;font-size:14px;margin-top:4px">beds</div></div><div style="padding:22px;background:#fff;border:1px solid #d9e4ec;border-radius:12px"><div style="font-size:28px;font-weight:800;color:#1B4F72;font-family:"Fraunces", Georgia, "Times New Roman", serif">12</div><div style="color:#5a6b78;font-size:14px;margin-top:4px">specialty departments</div></div>
+            </div>
+          </div>
+        </section>
+        <section data-ai-section="services" data-ai-id="home.services" id="services" class="wrap services" style="padding-top:40px">
+          <div class="eyebrow">Care pathways</div><h2>Services at a glance</h2>
+          <div class="service-cards-grid">
+      <a class="service-card" href="#" data-ai-id="services.0"><img data-ai-id="services.0.image" src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=900&q=80&auto=format&fit=crop" alt="" loading="lazy" ><div class="service-card-body"><div class="service-card-name" data-ai-id="services.0.name">Service 1</div><div class="service-card-desc" data-ai-id="services.0.desc">Description for service 1</div></div></a><a class="service-card" href="#" data-ai-id="services.1"><img data-ai-id="services.1.image" src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=900&q=80&auto=format&fit=crop" alt="" loading="lazy" ><div class="service-card-body"><div class="service-card-name" data-ai-id="services.1.name">Service 2</div><div class="service-card-desc" data-ai-id="services.1.desc">Description for service 2</div></div></a><a class="service-card" href="#" data-ai-id="services.2"><img data-ai-id="services.2.image" src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=900&q=80&auto=format&fit=crop" alt="" loading="lazy" ><div class="service-card-body"><div class="service-card-name" data-ai-id="services.2.name">Service 3</div><div class="service-card-desc" data-ai-id="services.2.desc">Description for service 3</div></div></a>
+    </div>
+        </section><section class="wrap" style="padding-top:56px;padding-bottom:24px" data-ai-section="features" data-ai-id="home.features" id="features">
+    <div class="eyebrow"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"></path></svg></span> Why it feels modern</div>
+    <h2 data-ai-id="visual.features.title">Designed with icons, imagery & polish</h2>
+    <p class="lead" data-ai-id="visual.features.subtitle">Every generated site ships with styled components, photo layouts, and SVG icons — not just plain text.</p>
+    <div class="feature-icons"><div class="card-soft" data-ai-id="visual.features.items.0"><h3 data-ai-id="visual.features.items.0.title">Modern experience</h3><p data-ai-id="visual.features.items.0.body">Clean UI with purposeful motion and clarity.</p></div><div class="card-soft" data-ai-id="visual.features.items.1"><h3 data-ai-id="visual.features.items.1.title">Built for people</h3><p data-ai-id="visual.features.items.1.body">Flows that feel obvious on day one.</p></div><div class="card-soft" data-ai-id="visual.features.items.2"><h3 data-ai-id="visual.features.items.2.title">Reliable foundation</h3><p data-ai-id="visual.features.items.2.body">Production-ready structure you can deploy.</p></div><div class="card-soft" data-ai-id="visual.features.items.3"><h3 data-ai-id="visual.features.items.3.title">Clear next steps</h3><p data-ai-id="visual.features.items.3.body">CTAs and forms that convert visitors.</p></div></div>
+          <h3 data-ai-id="visual.features.items.0.title">Modern experience</h3>
+          <p data-ai-id="visual.features.items.0.body">Clean UI with purposeful motion and clarity.</p>
+        </div><div class="card-soft" data-ai-id="visual.features.items.1">
+          <div class="icon-badge"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"></path></svg></span></div>
+          <h3 data-ai-id="visual.features.items.1.title">Built for people</h3>
+          <p data-ai-id="visual.features.items.1.body">Flows that feel obvious on day one.</p>
+        </div><div class="card-soft" data-ai-id="visual.features.items.2">
+          <div class="icon-badge"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></span></div>
+          <h3 data-ai-id="visual.features.items.2.title">Reliable foundation</h3>
+          <p data-ai-id="visual.features.items.2.body">Production-ready structure you can deploy.</p>
+        </div><div class="card-soft" data-ai-id="visual.features.items.3">
+          <div class="icon-badge"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span></div>
+          <h3 data-ai-id="visual.features.items.3.title">Clear next steps</h3>
+          <p data-ai-id="visual.features.items.3.body">CTAs and forms that convert visitors.</p>
+        </div>
+    </div>
+  </section><section class="wrap split-media-section" style="padding-top:48px;padding-bottom:24px" data-ai-section="split" data-ai-id="home.split" id="split">
+    <div class="split-media">
+      <div>
+        <div class="eyebrow"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"></path></svg></span> Built for Fort Hospital</div>
+        <h2 data-ai-id="visual.split.title">A polished layout with depth</h2>
+        <p class="lead" data-ai-id="visual.split.subtitle">Layered photography, icon badges, and conversion-ready CTAs — the same ingredients modern AI site builders use.</p>
+        <div class="avatar-row">
+          <div class="avs">
+            <img data-ai-id="media.gallery.0" src="https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=900&q=80&auto=format&fit=crop&w=80&h=80&fit=crop" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80&auto=format&fit=crop'" alt="Team 1" ><img data-ai-id="media.gallery.1" src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=900&q=80&auto=format&fit=crop&w=80&h=80&fit=crop" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80&auto=format&fit=crop'" alt="Team 2" ><img data-ai-id="media.gallery.2" src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=900&q=80&auto=format&fit=crop&w=80&h=80&fit=crop" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80&auto=format&fit=crop'" alt="Team 3" ><img data-ai-id="media.gallery.3" src="https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?w=900&q=80&auto=format&fit=crop&w=80&h=80&fit=crop" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80&auto=format&fit=crop'" alt="Team 4" >
+          </div>
+          <div style="font-size:13px;color:#5b6472;font-weight:600" data-ai-id="visual.split.trust">Trusted by teams shipping faster</div>
+        </div>
+        <div style="margin-top:22px;display:flex;gap:10px;flex-wrap:wrap">
+          <a class="btn" href="contact.html" data-ai-id="visual.split.cta"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg></span> Get started</a>
+          <a class="btn-secondary" href="#gallery" data-ai-id="visual.split.secondaryCta"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="m21 15-5-5L5 21"></path></svg></span> View gallery</a>
+        </div>
+      </div>
+      <div class="frame">
+        <img data-ai-id="media.split" src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=900&q=80&auto=format&fit=crop" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80&auto=format&fit=crop'" alt="Fort Hospital preview" loading="lazy">
+        <div class="float-chip"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span> Live preview ready</div>
+      </div>
+    </div>
+  </section><section class="wrap" style="padding-top:40px;padding-bottom:24px" data-ai-section="gallery" data-ai-id="home.gallery" id="gallery">
+    <div class="eyebrow"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="m21 15-5-5L5 21"></path></svg></span> Visual story</div>
+    <h2 data-ai-id="visual.gallery.title">Real imagery, ready to ship</h2>
+    <p class="lead" data-ai-id="visual.gallery.subtitle">High-quality photos matched to your category — swap with your brand assets anytime.</p>
+    <div class="photo-grid">
+      <div class="shot" data-gallery-index="0" data-ai-id="media.gallery.0" data-gallery-label="Care" role="button" tabindex="0" title="Edit Care image">
+              <img data-ai-id="media.gallery.0" src="https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=900&q=80&auto=format&fit=crop" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80&auto=format&fit=crop'" alt="Care" loading="lazy">
+              <div class="cap">Care</div>
+            </div><div class="shot" data-gallery-index="1" data-ai-id="media.gallery.1" data-gallery-label="Team" role="button" tabindex="0" title="Edit Team image">
+              <img data-ai-id="media.gallery.1" src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=900&q=80&auto=format&fit=crop" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80&auto=format&fit=crop'" alt="Team" loading="lazy">
+              <div class="cap">Team</div>
+            </div><div class="shot" data-gallery-index="2" data-ai-id="media.gallery.2" data-gallery-label="Clinic" role="button" tabindex="0" title="Edit Clinic image">
+              <img data-ai-id="media.gallery.2" src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=900&q=80&auto=format&fit=crop" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80&auto=format&fit=crop'" alt="Clinic" loading="lazy">
+              <div class="cap">Clinic</div>
+            </div><div class="shot" data-gallery-index="3" data-ai-id="media.gallery.3" data-gallery-label="Visit" role="button" tabindex="0" title="Edit Visit image">
+              <img data-ai-id="media.gallery.3" src="https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?w=900&q=80&auto=format&fit=crop" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80&auto=format&fit=crop'" alt="Visit" loading="lazy">
+              <div class="cap">Visit</div>
+            </div><div class="shot" data-gallery-index="4" data-ai-id="media.gallery.4" data-gallery-label="Support" role="button" tabindex="0" title="Edit Support image">
+              <img data-ai-id="media.gallery.4" src="https://images.unsplash.com/photo-1666214280557-f1b5022eb634?w=900&q=80&auto=format&fit=crop" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80&auto=format&fit=crop'" alt="Support" loading="lazy">
+              <div class="cap">Support</div>
+            </div>
+    </div>
+  </section><section class="wrap" data-ai-section="cta" data-ai-id="home.cta" id="cta"><div class="cta-band">
+      <h3 data-ai-id="visual.cta.title"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"></path></svg></span> Ready to get started with Fort Hospital?</h3>
+      <p data-ai-id="visual.cta.blurb">Book online in minutes — or tell us what you need and we’ll follow up.</p>
+      <div class="btn-row">
+        <a class="btn" href="contact.html" style="background:#fff;color:#1B4F72" data-ai-id="visual.cta.primaryLabel"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg></span> Book now</a>
+        <a class="btn-ghost" href="contact.html" data-ai-id="visual.cta.secondaryLabel"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.5-1.1a2 2 0 0 1 2.1-.4c.9.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"></path></svg></span> Talk to us</a>
+      </div>
+    </div></section><section class="wrap" data-ai-section="form" data-ai-id="home.form" id="form"><form class="site-form" data-site-form data-success="Submitted — thank you!">
+    <h3 data-ai-id="visual.form.title"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><path d="m22 6-10 7L2 6"></path></svg></span> Request a callback</h3>
+    <p data-ai-id="visual.form.blurb">Leave your details and we’ll call you back.</p>
+    <div class="field"><label for="name">Name</label><input id="name" name="name" type="text" required ></div><div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required ></div><div class="field"><label for="phone">Phone</label><input id="phone" name="phone" type="tel" required ></div><div class="field"><label for="interest">I’m interested in</label><select id="interest" name="interest"><option>New appointment</option><option>Insurance question</option><option>General inquiry</option><option>Partnership</option></select></div>
+    <div class="form-actions">
+      <button class="btn" type="submit" data-ai-id="visual.form.submitLabel"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span> Request callback</button>
+      <span class="hint">Demo form — wires to your backend when you deploy.</span>
+    </div>
+  </form></section><footer class="wrap"><div>© 2026 Fort Hospital</div><div style="display:flex;align-items:center;gap:8px"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"></path></svg></span> Built with AppBuilder AI</div></footer>
+  <div class="sticky-cta"><a class="btn" href="contact.html"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.5-1.1a2 2 0 0 1 2.1-.4c.9.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"></path></svg></span> Book / Contact</a></div>
+  <div class="toast" id="site-toast">Thanks — we’ll follow up shortly.</div>
+<script>
+(function(){
+  function showToast(msg){
+    var t=document.getElementById('site-toast');
+    if(!t) return;
+    if(msg) t.textContent=msg;
+    t.classList.add('show');
+    setTimeout(function(){ t.classList.remove('show'); }, 2200);
+  }
+  document.querySelectorAll('form[data-site-form]').forEach(function(form){
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      showToast(form.getAttribute('data-success') || 'Thanks — we’ll follow up shortly.');
+      form.reset();
+    });
+  });
+})();
+</script></body></html>

@@ -1,0 +1,10 @@
+Fort Hospital — a modern multi-specialty clinic website.
+
+Home Page with hero banner, emergency contact, specialties, featured doctors, testimonials, and CTAs.
+Include a "Services at a glance" section with service cards.
+About Us (Vision, Mission, Management).
+Departments (Cardiology, Neurology, Orthopaedics, Pediatrics).
+
+Brand: Fort Hospital
+Tone: calm, trustworthy, clinical but warm
+Accent: teal / deep blue

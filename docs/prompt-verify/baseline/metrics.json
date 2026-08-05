@@ -1,0 +1,13 @@
+{
+  "brandName": "Fort Hospital",
+  "accent": "#1B4F72",
+  "heroTitle": "Care for our community, every day",
+  "serviceCount": 4,
+  "serviceCardsInHtml": 4,
+  "servicesWithImages": 0,
+  "serviceColumns": null,
+  "galleryHidden": false,
+  "servicesHidden": false,
+  "hasServicesHeading": true,
+  "hasHeroTitleInHtml": true
+}

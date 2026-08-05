@@ -1,0 +1,36 @@
+{
+  "before": {
+    "brandName": "Fort Hospital",
+    "accent": "#1B4F72",
+    "heroTitle": "Care for our community, every day",
+    "serviceCount": 4,
+    "serviceCardsInHtml": 4,
+    "servicesWithImages": 0,
+    "serviceColumns": null,
+    "galleryHidden": false,
+    "servicesHidden": false,
+    "hasServicesHeading": true,
+    "hasHeroTitleInHtml": true
+  },
+  "after": {
+    "brandName": "Fort Hospital",
+    "accent": "#1B4F72",
+    "heroTitle": "Care for our community, every day",
+    "serviceCount": 4,
+    "serviceCardsInHtml": 4,
+    "servicesWithImages": 0,
+    "serviceColumns": null,
+    "galleryHidden": true,
+    "servicesHidden": false,
+    "hasServicesHeading": true,
+    "hasHeroTitleInHtml": true
+  },
+  "targetId": "home.gallery",
+  "updates": [
+    {
+      "id": "home.gallery",
+      "op": "hide_section",
+      "type": "section"
+    }
+  ]
+}

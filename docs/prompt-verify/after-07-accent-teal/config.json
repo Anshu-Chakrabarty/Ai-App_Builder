@@ -1,0 +1,76 @@
+{
+  "brandName": "Fort Hospital",
+  "accent": "#0f766e",
+  "theme": {
+    "primary": "#0f766e"
+  },
+  "layout": {},
+  "sectionState": {},
+  "pages": [
+    {
+      "key": "home",
+      "label": "Home",
+      "slug": "index.html"
+    },
+    {
+      "key": "departments",
+      "label": "Departments",
+      "slug": "departments.html"
+    },
+    {
+      "key": "specialists",
+      "label": "Specialists",
+      "slug": "specialists.html"
+    },
+    {
+      "key": "visitors",
+      "label": "Visitors",
+      "slug": "visitors.html"
+    },
+    {
+      "key": "contact",
+      "label": "Contact",
+      "slug": "contact.html"
+    }
+  ],
+  "media": {
+    "category": "healthcare",
+    "hero": "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=1200&q=80&auto=format&fit=crop",
+    "galleryCount": 6
+  },
+  "content": {
+    "hero": {
+      "title": "Care for our community, every day",
+      "subtitle": "Meridian General is a full-service community hospital with emergency, surgical, and specialty care under one roof.",
+      "ctaText": "Find a department"
+    },
+    "services": [
+      {
+        "name": "Patient Scheduling",
+        "desc": "Book visits online or by phone."
+      },
+      {
+        "name": "Primary Care",
+        "desc": "Same-week appointments with continuity."
+      },
+      {
+        "name": "Diagnostics",
+        "desc": "On-site labs and imaging."
+      },
+      {
+        "name": "Care Navigation",
+        "desc": "Guidance from intake through recovery."
+      }
+    ],
+    "visual": {
+      "gallery": {
+        "title": "Real imagery, ready to ship",
+        "subtitle": "High-quality photos matched to your category — swap with your brand assets anytime."
+      },
+      "features": {
+        "title": "Designed with icons, imagery & polish",
+        "itemCount": 4
+      }
+    }
+  }
+}

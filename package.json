@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "next lint",
     "qa:prompts": "tsx scripts/qa-prompts.ts",
-    "qa:prompts:all": "tsx scripts/qa-all-prompts.ts"
+    "qa:prompts:all": "tsx scripts/qa-all-prompts.ts",
+    "qa:verify": "tsx scripts/generate-and-verify-prompts.ts"
   },
   "dependencies": {
     "@google/genai": "^1.52.0",
